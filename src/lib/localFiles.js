@@ -77,9 +77,37 @@ export async function writeFileViaHandle(handle, blob) {
       throw new Error("Write permission was not granted.");
     }
   }
-  const writable = await handle.createWritable();
-  await writable.write(blob);
-  await writable.close();
+
+  // Refreshing the handle's cached state right before writing (and retrying
+  // once on failure) works around a known Chromium quirk: a handle that's
+  // been sitting unused (e.g. restored from IndexedDB across a session) can
+  // throw "state had changed since it was read from disk" on the first
+  // write attempt even though nothing is actually wrong. This is also
+  // commonly triggered by cloud-sync clients (OneDrive, Google Drive for
+  // Desktop, Dropbox) touching the file in the background.
+  async function attemptWrite() {
+    await handle.getFile();
+    const writable = await handle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+  }
+
+  try {
+    await attemptWrite();
+  } catch (err) {
+    if (err.name === "InvalidStateError") {
+      try {
+        await attemptWrite();
+      } catch (retryErr) {
+        throw new Error(
+          "The file's state changed unexpectedly while saving — this often happens when the file lives in a cloud-synced folder (OneDrive, Google Drive for Desktop, Dropbox). Try again, or move the file outside any synced folder."
+        );
+      }
+    } else {
+      throw err;
+    }
+  }
+
   return handle.getFile();
 }
 

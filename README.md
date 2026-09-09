@@ -224,6 +224,39 @@ swap in a real one whenever you have it). Closing it or clicking "Back
 to library" both just dismiss the modal; there's no separate page to
 navigate between, it's all one view underneath.
 
+## Performance at large library sizes
+
+Three changes specifically target libraries in the 1000+ track range:
+
+- **The library table is virtualized** (`react-window`) — only the rows
+  actually scrolled into view exist as real DOM elements, not all 1000+
+  at once. This is what pagination would have given you too, but without
+  changing the UX to "pages" — scrolling still feels continuous.
+- **Search is debounced** (~220ms after you stop typing) and the fuzzy
+  matching itself is tighter than before — a plain substring match is
+  still instant, but the more expensive typo-tolerant fallback only
+  engages for queries of 4+ characters and requires a much closer match
+  (this is also what fixed "eminem" incorrectly matching "enemy" — see
+  below). Search still scans your **entire** library every time, not just
+  whatever's currently paginated/scrolled into view — that part was never
+  in tension with performance, filtering has to happen before display
+  regardless of how the results get rendered.
+- **Google Drive's full-library rescan is throttled to once per 15
+  minutes** for the automatic silent reconnect specifically — a manual
+  "Connect"/"+ Add account" click always forces a fresh scan regardless,
+  since that's a deliberate action. At smaller library sizes this
+  probably wasn't noticeable; at 1000+ tracks spread across Drive, a
+  full rescan (plus a partial download + tag parse for anything new) on
+  every single page load was a real, separate cost from the rendering
+  and search issues above.
+
+One trade-off worth knowing: drag-to-reorder in the library table now
+only works between rows that are both currently mounted in the DOM —
+i.e., visible or close to visible. Dragging a track a very long distance
+in a huge library (scroll position needs to move during the drag) isn't
+fully supported the way it was before virtualization; reordering nearby
+rows is unaffected.
+
 ## How it's built
 
 - **React + Vite** — fast dev loop, small production bundle.
@@ -266,6 +299,9 @@ navigate between, it's all one view underneath.
 - The app version shown in the About modal comes from `package.json`
   via a small Vite `define` in `vite.config.js` — one source of truth,
   no separately-maintained version string to forget to update.
+- **`react-window`** (`src/components/TrackList.jsx`) — virtualizes the
+  library table for large collections; see "Performance at large library
+  sizes" above.
 
 ## Path to Android
 

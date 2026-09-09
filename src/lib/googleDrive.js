@@ -38,6 +38,24 @@ export function forgetAccount(email) {
   localStorage.setItem(REMEMBERED_KEY, JSON.stringify(list));
 }
 
+const SYNC_THROTTLE_MS = 15 * 60 * 1000; // 15 minutes
+
+/**
+ * Whether a full library rescan is due for this account. Used to avoid
+ * re-scanning (and re-downloading tag data for) a large Drive library on
+ * every single silent auto-reconnect — a manual "Connect"/"Add account"
+ * click always bypasses this and forces a fresh scan, since that's a
+ * deliberate user action.
+ */
+export function isSyncDue(connectionId) {
+  const last = Number(localStorage.getItem(`mixtape:lastSync:${connectionId}`) || 0);
+  return Date.now() - last > SYNC_THROTTLE_MS;
+}
+
+export function markSynced(connectionId) {
+  localStorage.setItem(`mixtape:lastSync:${connectionId}`, String(Date.now()));
+}
+
 /**
  * Requests an access token. Two modes:
  * - Explicit connect (default): shows Google's account picker every time,

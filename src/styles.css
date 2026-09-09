@@ -172,17 +172,23 @@ button {
 .main {
   grid-row: 1 / 2;
   grid-column: 2 / 3;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   padding: 0 32px 32px;
 }
 
 .library-header {
-  position: sticky;
-  top: 0;
-  z-index: 20;
+  flex-shrink: 0;
   background: var(--bg);
   padding: 24px 0 16px;
-  margin-bottom: 4px;
+}
+
+.library-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .transport {
@@ -349,6 +355,15 @@ button {
 
 .track-list {
   border-top: 1px solid var(--divider);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.track-list-viewport {
+  flex: 1;
+  min-height: 0;
 }
 
 .track-row {

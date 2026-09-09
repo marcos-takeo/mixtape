@@ -18,6 +18,8 @@ import {
   getRememberedAccounts,
   rememberAccount,
   forgetAccount,
+  isSyncDue,
+  markSynced,
 } from "./lib/googleDrive.js";
 import { tryGetFileSilently, requestFileAccess, writeFileViaHandle, downloadBlob } from "./lib/localFiles.js";
 import {
@@ -31,6 +33,7 @@ import {
   deletePlaylist as dbDeletePlaylist,
 } from "./lib/db.js";
 import { trackSearchScore } from "./lib/search.js";
+import { useDebouncedValue } from "./lib/useDebouncedValue.js";
 
 export default function App() {
   const [tracks, setTracks] = useState([]);
@@ -50,6 +53,7 @@ export default function App() {
   const [activePlaylistId, setActivePlaylistId] = useState(null);
   const [editingTrackId, setEditingTrackId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 220);
   const [showAbout, setShowAbout] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
@@ -110,9 +114,11 @@ export default function App() {
           if (!accessToken) return;
           const connection = { id: `google:${email}`, provider: "google", label: email, accessToken };
           setDriveConnections((prev) => [...prev.filter((c) => c.id !== connection.id), connection]);
-          syncDriveAccountLibrary(connection).catch((err) =>
-            console.warn("Drive auto-sync failed for", email, err)
-          );
+          if (isSyncDue(connection.id)) {
+            syncDriveAccountLibrary(connection).catch((err) =>
+              console.warn("Drive auto-sync failed for", email, err)
+            );
+          }
         })
       );
     })();
@@ -370,6 +376,7 @@ export default function App() {
       if (existing) return prev.map((p) => (p.id === playlistId ? playlist : p));
       return [...prev, playlist];
     });
+    markSynced(connection.id);
   }
 
   // Drive files' full audio is only downloaded the first time they're played
@@ -655,7 +662,7 @@ export default function App() {
       list = [...tracks].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     }
 
-    const query = searchQuery.trim();
+    const query = debouncedSearchQuery.trim();
     let scoreById = null;
     if (query) {
       scoreById = new Map();
@@ -681,9 +688,9 @@ export default function App() {
     }
 
     return list;
-  }, [tracks, activePlaylistId, playlists, sortKey, sortDir, searchQuery]);
+  }, [tracks, activePlaylistId, playlists, sortKey, sortDir, debouncedSearchQuery]);
 
-  const reorderable = sortKey === null && !searchQuery.trim();
+  const reorderable = sortKey === null && !debouncedSearchQuery.trim();
 
   async function handleReorder(fromIndex, toIndex) {
     const list = [...queue];
@@ -883,37 +890,39 @@ export default function App() {
               </button>
             )}
           </div>
+          {notice && (
+            <p className="notice-text">
+              {notice}
+              {pendingRelinkTrackId && (
+                <button
+                  className="link-btn notice-action"
+                  onClick={() => handleRelinkOne(pendingRelinkTrackId)}
+                >
+                  Grant access
+                </button>
+              )}
+            </p>
+          )}
         </div>
-        {notice && (
-          <p className="notice-text">
-            {notice}
-            {pendingRelinkTrackId && (
-              <button
-                className="link-btn notice-action"
-                onClick={() => handleRelinkOne(pendingRelinkTrackId)}
-              >
-                Grant access
-              </button>
-            )}
-          </p>
-        )}
-        <TrackList
-          tracks={queue}
-          currentId={playingTrack?.id}
-          onPlay={playIndexInQueue}
-          onEdit={(track) => setEditingTrackId(track.id)}
-          canEdit={canEditTrack}
-          onRemove={handleRemoveTrack}
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSortChange={handleSortChange}
-          reorderable={reorderable}
-          onReorder={handleReorder}
+        <div className="library-body">
+          <TrackList
+            tracks={queue}
+            currentId={playingTrack?.id}
+            onPlay={playIndexInQueue}
+            onEdit={(track) => setEditingTrackId(track.id)}
+            canEdit={canEditTrack}
+            onRemove={handleRemoveTrack}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSortChange={handleSortChange}
+            reorderable={reorderable}
+            onReorder={handleReorder}
           playlists={playlists}
           activePlaylistId={activePlaylistId}
           onAddToPlaylist={handleAddToPlaylist}
           onRemoveFromPlaylist={handleRemoveFromPlaylist}
-        />
+          />
+        </div>
       </main>
 
       <PlayerBar

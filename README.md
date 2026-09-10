@@ -151,25 +151,37 @@ separate from ones you create by hand.
 
 ## Now playing
 
-The transport bar's title/artist scroll (marquee-style) only when the
-text doesn't fit, and its small album art spins only while a track is
-actually playing — it stops the moment playback ends (including the
-natural end of the last track with repeat off) rather than spinning
-indefinitely. Click the now-playing text or art to expand a panel above
-the transport bar with a large (350×350 on desktop, 200×200 and centered
-on mobile) view of the album art and, when available, lyrics — centered,
-large text, synced lyrics highlight and auto-scroll the current line as
-the track plays; otherwise plain lyrics are shown. That panel sits above
-everything else in the transport bar (including the sticky search
-header) so nothing overlaps it.
+The transport bar's title/artist scroll (marquee-style, right-to-left)
+only when the text doesn't fit, and its small album art spins only while
+a track is actually playing — it stops the moment playback ends
+(including the natural end of the last track with repeat off) rather
+than spinning indefinitely. The artist line shows the album too when
+known (`Artist // Album`), so you don't have to open the panel just to
+see what album a track is from. A floating **+** button (lime green,
+top-right of the transport bar, deliberately not aligned with the other
+controls) opens a checklist of your playlists — check any number of
+them to add the currently playing track to each; it reflects existing
+membership, so already-added playlists show pre-checked.
 
-All the transport icons (shuffle, prev/play/pause/next, repeat, volume)
-are plain SVGs that follow the app's own color scheme — white by
-default, lime green when active — rather than emoji, which on many
-systems render with their own fixed colors (that's why repeat used to
-show a blue-tinted icon and volume a blue speaker regardless of theme).
-The **repeat** button cycles off → all → one song, and **shuffle**
-overrides play order independently of it.
+Click the now-playing text or art to expand a panel above the transport
+bar with a large (350×350 on desktop, 200×200 centered on mobile
+portrait, 215×215 in mobile landscape) view of the album art and, when
+available, lyrics — centered, large text, synced lyrics highlight and
+auto-scroll the current line as the track plays; otherwise plain lyrics
+are shown. In mobile landscape specifically, the title/artist/album text
+is hidden from this panel (it's already visible in the transport bar
+below, and landscape phone screens don't have the vertical room to
+duplicate it). This panel — and every modal in the app — renders above
+the sidebar, so opening one while the sidebar happens to be open
+(mobile, mainly) never gets visually blocked by it.
+
+All the transport icons (shuffle, prev/play/pause/next, repeat, volume,
+add-to-playlist) are plain SVGs that follow the app's own color scheme —
+white by default, lime green when active — rather than emoji, which on
+many systems render with their own fixed colors (that's why repeat used
+to show a blue-tinted icon and volume a blue speaker regardless of
+theme). The **repeat** button cycles off → all → one song, and
+**shuffle** overrides play order independently of it.
 
 ### How lyrics are matched
 

@@ -12,6 +12,7 @@ import {
   RepeatIcon,
   RepeatOneIcon,
   VolumeIcon,
+  PlusIcon,
 } from "./Icons.jsx";
 
 export default function PlayerBar({
@@ -29,6 +30,7 @@ export default function PlayerBar({
   onToggleShuffle,
   repeatMode,
   onCycleRepeat,
+  onOpenAddToPlaylist,
 }) {
   const [expanded, setExpanded] = useState(false);
   const [lyrics, setLyrics] = useState(null); // undefined = loading, null = none found/not fetched
@@ -162,6 +164,16 @@ export default function PlayerBar({
       )}
 
       <div className="transport-inner">
+        {track && (
+          <button
+            className="add-to-playlist-fab"
+            onClick={onOpenAddToPlaylist}
+            aria-label="Add to playlist"
+            title="Add to playlist"
+          >
+            <PlusIcon width={22} height={22} />
+          </button>
+        )}
         <button
           className="np-info"
           onClick={() => track && setExpanded((v) => !v)}
@@ -176,7 +188,10 @@ export default function PlayerBar({
             {track ? (
               <>
                 <Marquee text={track.title} className="np-title" />
-                <Marquee text={track.artist} className="np-artist" />
+                <Marquee
+                  text={track.album ? `${track.artist} // ${track.album}` : track.artist}
+                  className="np-artist"
+                />
               </>
             ) : (
               <>

@@ -4,6 +4,7 @@ import TrackList from "./components/TrackList.jsx";
 import PlayerBar from "./components/PlayerBar.jsx";
 import EditTagsModal from "./components/EditTagsModal.jsx";
 import AboutModal from "./components/AboutModal.jsx";
+import AddToPlaylistModal from "./components/AddToPlaylistModal.jsx";
 import LoadingScreen from "./components/LoadingScreen.jsx";
 import { readTags } from "./lib/id3.js";
 import { writeId3Tags } from "./lib/id3Writer.js";
@@ -55,6 +56,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 220);
   const [showAbout, setShowAbout] = useState(false);
+  const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
 
@@ -639,6 +641,25 @@ export default function App() {
     if (changed) await putPlaylist(changed);
   }
 
+  /** Adds or removes a track from a specific playlist, whichever it isn't currently in. */
+  async function handleToggleTrackInPlaylist(trackId, playlistId) {
+    let changed = null;
+    setPlaylists((prev) => {
+      const updated = prev.map((p) => {
+        if (p.id !== playlistId) return p;
+        const has = p.trackIds.includes(trackId);
+        const np = {
+          ...p,
+          trackIds: has ? p.trackIds.filter((id) => id !== trackId) : [...p.trackIds, trackId],
+        };
+        changed = np;
+        return np;
+      });
+      return updated;
+    });
+    if (changed) await putPlaylist(changed);
+  }
+
   // --- Sorting ---
   function handleSortChange(key) {
     if (sortKey !== key) {
@@ -940,6 +961,7 @@ export default function App() {
         onToggleShuffle={() => setShuffle((v) => !v)}
         repeatMode={repeatMode}
         onCycleRepeat={cycleRepeatMode}
+        onOpenAddToPlaylist={() => setShowAddToPlaylist(true)}
       />
 
       <audio
@@ -976,6 +998,15 @@ export default function App() {
         })()}
 
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+
+      {showAddToPlaylist && playingTrack && (
+        <AddToPlaylistModal
+          track={playingTrack}
+          playlists={playlists}
+          onToggle={handleToggleTrackInPlaylist}
+          onClose={() => setShowAddToPlaylist(false)}
+        />
+      )}
       </div>
     </>
   );

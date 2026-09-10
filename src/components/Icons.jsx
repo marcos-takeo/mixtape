@@ -105,3 +105,12 @@ export function InfoIcon(props) {
     </svg>
   );
 }
+
+export function PlusIcon(props) {
+  return (
+    <svg {...base} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" {...props}>
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
+  );
+}

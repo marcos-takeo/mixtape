@@ -489,7 +489,7 @@ export default function App() {
       const newAudioBlob = await writeId3Tags(fullBlob, {
         title: fields.title,
         artist: fields.artist,
-        album: track.album,
+        album: fields.album,
         year: track.year,
         isrc: track.isrc,
         pictureBlob,
@@ -501,7 +501,7 @@ export default function App() {
       setTracks((prev) =>
         prev.map((t) =>
           t.id === track.id
-            ? { ...t, objectUrl, title: fields.title, artist: fields.artist, artworkUrl }
+            ? { ...t, objectUrl, title: fields.title, artist: fields.artist, album: fields.album, artworkUrl }
             : t
         )
       );
@@ -512,6 +512,7 @@ export default function App() {
         ...record,
         title: fields.title,
         artist: fields.artist,
+        album: fields.album,
         artworkBlob: pictureBlob,
         updatedAt: Date.now(),
       };
@@ -526,7 +527,7 @@ export default function App() {
     const newAudioBlob = await writeId3Tags(track.file, {
       title: fields.title,
       artist: fields.artist,
-      album: track.album,
+      album: fields.album,
       year: track.year,
       isrc: track.isrc,
       pictureBlob,
@@ -539,7 +540,15 @@ export default function App() {
       setTracks((prev) =>
         prev.map((t) =>
           t.id === track.id
-            ? { ...t, file: newFile, objectUrl, title: fields.title, artist: fields.artist, artworkUrl }
+            ? {
+                ...t,
+                file: newFile,
+                objectUrl,
+                title: fields.title,
+                artist: fields.artist,
+                album: fields.album,
+                artworkUrl,
+              }
             : t
         )
       );
@@ -550,6 +559,7 @@ export default function App() {
         ...record,
         title: fields.title,
         artist: fields.artist,
+        album: fields.album,
         artworkBlob: pictureBlob,
         updatedAt: Date.now(),
       };
@@ -563,7 +573,11 @@ export default function App() {
     // app's own display still reflects the edit for this session.
     downloadBlob(newAudioBlob, track.fileName || `${fields.title}.mp3`);
     setTracks((prev) =>
-      prev.map((t) => (t.id === track.id ? { ...t, title: fields.title, artist: fields.artist, artworkUrl } : t))
+      prev.map((t) =>
+        t.id === track.id
+          ? { ...t, title: fields.title, artist: fields.artist, album: fields.album, artworkUrl }
+          : t
+      )
     );
     if (oldArtworkUrl) URL.revokeObjectURL(oldArtworkUrl);
     if (record) {
@@ -571,6 +585,7 @@ export default function App() {
         ...record,
         title: fields.title,
         artist: fields.artist,
+        album: fields.album,
         artworkBlob: pictureBlob,
         updatedAt: Date.now(),
       };
@@ -901,7 +916,7 @@ export default function App() {
             <input
               type="search"
               className="search-input"
-              placeholder="Search title or artist…"
+              placeholder="Search title, artist, or album…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />

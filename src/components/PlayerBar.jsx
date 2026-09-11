@@ -93,9 +93,8 @@ export default function PlayerBar({
             style={track.artworkUrl ? { backgroundImage: `url(${track.artworkUrl})` } : undefined}
           />
           <div className="np-panel-text">
-            <div className="np-panel-title">{track.title}</div>
-            <div className="np-panel-artist">{track.artist}</div>
-            {track.album && <div className="np-panel-album">{track.album}</div>}
+            {/* Title/artist/album intentionally omitted here — already shown
+                in the transport bar's now-playing info, right below this panel. */}
 
             <div className="np-panel-lyrics">
               <div className="lyrics-actions">
@@ -187,11 +186,15 @@ export default function PlayerBar({
           <div className="np-text">
             {track ? (
               <>
-                <Marquee text={track.title} className="np-title" />
+                <Marquee text={track.title} className="np-title np-title-marquee" />
                 <Marquee
                   text={track.album ? `${track.artist} // ${track.album}` : track.artist}
-                  className="np-artist"
+                  className="np-artist np-artist-marquee"
                 />
+                <div className="np-title np-title-wrap">{track.title}</div>
+                <div className="np-artist np-artist-wrap">
+                  {track.album ? `${track.artist} // ${track.album}` : track.artist}
+                </div>
               </>
             ) : (
               <>

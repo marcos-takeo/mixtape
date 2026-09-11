@@ -3,6 +3,7 @@ import React, { useState } from "react";
 export default function EditTagsModal({ track, hasHandle, onClose, onSave }) {
   const [title, setTitle] = useState(track.title || "");
   const [artist, setArtist] = useState(track.artist || "");
+  const [album, setAlbum] = useState(track.album || "");
   const [newArt, setNewArt] = useState(null); // File | null
   const [removeArt, setRemoveArt] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -24,6 +25,7 @@ export default function EditTagsModal({ track, hasHandle, onClose, onSave }) {
       const result = await onSave({
         title: title.trim() || track.title,
         artist: artist.trim() || track.artist,
+        album: album.trim(),
         pictureFile: newArt,
         removeArt,
       });
@@ -109,6 +111,16 @@ export default function EditTagsModal({ track, hasHandle, onClose, onSave }) {
             onChange={(e) => setArtist(e.target.value)}
             disabled={saving}
             required
+          />
+        </label>
+        <label className="editor-field">
+          Album
+          <input
+            type="text"
+            value={album}
+            onChange={(e) => setAlbum(e.target.value)}
+            disabled={saving}
+            placeholder="(none)"
           />
         </label>
 

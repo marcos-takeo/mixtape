@@ -108,20 +108,25 @@ button {
 }
 
 .sidebar-header {
+  position: relative;
   display: flex;
+  justify-content: center;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
   margin-bottom: 20px;
+  padding-right: 34px;
 }
 
 .logo-img {
-  height: 34px;
+  height: 40px;
   width: auto;
+  max-width: 100%;
   object-fit: contain;
 }
 
 .collapse-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
   background: none;
   border: 1px solid var(--divider);
   color: var(--text-muted);
@@ -213,7 +218,7 @@ button {
   align-items: center;
   justify-content: center;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  z-index: 10;
+  z-index: 45;
 }
 
 .add-to-playlist-fab:hover {
@@ -389,7 +394,7 @@ button {
 
 .track-row {
   display: grid;
-  grid-template-columns: 44px 1.4fr 1fr 1fr 64px 168px;
+  grid-template-columns: 44px 1.3fr 1fr 1fr 1fr 64px 168px;
   align-items: center;
   gap: 12px;
   padding: 8px 8px;
@@ -500,6 +505,14 @@ button {
 
 .track-filename {
   font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-album {
+  font-size: 13px;
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -877,6 +890,11 @@ button {
   color: var(--text-muted);
 }
 
+.np-title-wrap,
+.np-artist-wrap {
+  display: none;
+}
+
 /* ---------- Marquee ---------- */
 
 .marquee {
@@ -939,6 +957,7 @@ button {
   gap: 24px;
   align-items: center;
   height: 75vh;
+  height: 75dvh;
   overflow: hidden;
   z-index: 40;
 }
@@ -1271,7 +1290,7 @@ input[type="range"]::-moz-range-thumb {
 
   /* Library table: drop the file-name column, tighten the rest */
   .track-row {
-    grid-template-columns: 36px 1.3fr 1fr 46px 64px;
+    grid-template-columns: 36px 1.1fr 1fr 1fr 46px 64px;
     gap: 8px;
     padding: 8px 4px;
   }
@@ -1314,6 +1333,7 @@ input[type="range"]::-moz-range-thumb {
     flex-direction: column;
     align-items: center;
     height: 85vh;
+    height: 78dvh;
     padding: 16px;
     gap: 12px;
   }
@@ -1355,8 +1375,29 @@ input[type="range"]::-moz-range-thumb {
   }
 
   .track-duration,
-  .track-header .col-right {
+  .track-header .col-right,
+  .track-album,
+  .col-album {
     display: none;
+  }
+
+  .np-panel-art {
+    margin-top: 30px;
+  }
+
+  .np-title-marquee,
+  .np-artist-marquee {
+    display: none;
+  }
+
+  .np-title-wrap,
+  .np-artist-wrap {
+    display: -webkit-box;
+    white-space: normal;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.3;
   }
 }
 
@@ -1487,14 +1528,6 @@ input[type="range"]::-moz-range-thumb {
 
   .lyric-line.active {
     font-size: 24px;
-  }
-
-  /* Already shown in the transport bar's now-playing info, so hide the
-     duplicate here to save the limited vertical space. */
-  .np-panel-title,
-  .np-panel-artist,
-  .np-panel-album {
-    display: none;
   }
 }
 

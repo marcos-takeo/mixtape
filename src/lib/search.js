@@ -69,5 +69,9 @@ export function fuzzyScore(query, text) {
 
 /** Best score across title + artist, or -Infinity if neither is a good match. */
 export function trackSearchScore(query, track) {
-  return Math.max(fuzzyScore(query, track.title), fuzzyScore(query, track.artist));
+  return Math.max(
+    fuzzyScore(query, track.title),
+    fuzzyScore(query, track.artist),
+    fuzzyScore(query, track.album)
+  );
 }

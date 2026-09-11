@@ -70,6 +70,7 @@ function Row({
         {track.artist}
         {unavailable && " · needs file"}
       </button>
+      <span className="track-album">{track.album || "—"}</span>
       <span className="track-filename">{track.fileName || "—"}</span>
       <span className="track-duration">{formatDuration(track.durationSec)}</span>
       <span className="track-actions">
@@ -213,6 +214,7 @@ export default function TrackList({
         <button className="col-sort" onClick={() => onSortChange("artist")}>
           Artist {sortArrow("artist")}
         </button>
+        <span className="col-album">Album</span>
         <span className="col-file">File</span>
         <span className="col-right">Length</span>
         <span />

@@ -204,10 +204,29 @@ button {
   position: relative;
 }
 
+.np-info {
+  position: static;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.np-info[tabindex="-1"] {
+  cursor: default;
+}
+
 .add-to-playlist-fab {
   position: absolute;
-  top: -22px;
-  right: 24px;
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
   width: 44px;
   height: 44px;
   border-radius: 50%;
@@ -394,7 +413,7 @@ button {
 
 .track-row {
   display: grid;
-  grid-template-columns: 44px 1.3fr 1fr 1fr 1fr 64px 168px;
+  grid-template-columns: 44px 1.3fr 1fr 1fr 36px 1fr 64px 168px;
   align-items: center;
   gap: 12px;
   padding: 8px 8px;
@@ -517,6 +536,13 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.track-source {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
 }
 
 .track-duration {
@@ -834,22 +860,6 @@ button {
   align-items: center;
   gap: 20px;
   padding: 12px 24px;
-}
-
-.np-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-  background: none;
-  border: none;
-  padding: 0;
-  color: inherit;
-  text-align: left;
-}
-
-.np-info:disabled {
-  cursor: default;
 }
 
 .np-art {
@@ -1245,6 +1255,11 @@ input[type="range"]::-moz-range-thumb {
     grid-template-columns: 1fr;
   }
 
+  .main,
+  .transport {
+    grid-column: 1;
+  }
+
   .sidebar,
   .app.sidebar-collapsed .sidebar {
     position: fixed;
@@ -1290,7 +1305,7 @@ input[type="range"]::-moz-range-thumb {
 
   /* Library table: drop the file-name column, tighten the rest */
   .track-row {
-    grid-template-columns: 36px 1.1fr 1fr 1fr 46px 64px;
+    grid-template-columns: 36px 1.1fr 1fr 1fr 32px 46px 64px;
     gap: 8px;
     padding: 8px 4px;
   }
@@ -1371,7 +1386,7 @@ input[type="range"]::-moz-range-thumb {
 
 @media (max-width: 720px) and (orientation: portrait) {
   .track-row {
-    grid-template-columns: 36px 1.4fr 1fr 64px;
+    grid-template-columns: 36px 1.4fr 1fr 32px 64px;
   }
 
   .track-duration,
@@ -1383,6 +1398,20 @@ input[type="range"]::-moz-range-thumb {
 
   .np-panel-art {
     margin-top: 30px;
+  }
+
+  .np-info {
+    position: relative;
+  }
+
+  .np-text {
+    padding-right: 44px;
+  }
+
+  .add-to-playlist-fab {
+    right: 4px;
+    width: 36px;
+    height: 36px;
   }
 
   .np-title-marquee,
@@ -1509,6 +1538,33 @@ input[type="range"]::-moz-range-thumb {
 .playlist-picker-item .playlist-count {
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.new-playlist-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.new-playlist-form input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--divider);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: var(--font-ui);
+}
+
+.new-playlist-form input:focus {
+  border-color: var(--accent-secondary);
+}
+
+.new-playlist-form .source-btn {
+  width: auto;
+  white-space: nowrap;
+  padding: 8px 14px;
 }
 
 /* ---------- Mobile landscape: compact now-playing panel ---------- */

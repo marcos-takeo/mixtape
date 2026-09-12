@@ -163,21 +163,18 @@ export default function PlayerBar({
       )}
 
       <div className="transport-inner">
-        {track && (
-          <button
-            className="add-to-playlist-fab"
-            onClick={onOpenAddToPlaylist}
-            aria-label="Add to playlist"
-            title="Add to playlist"
-          >
-            <PlusIcon width={22} height={22} />
-          </button>
-        )}
-        <button
+        <div
           className="np-info"
           onClick={() => track && setExpanded((v) => !v)}
-          disabled={!track}
-          title={track ? "Show now playing" : undefined}
+          role="button"
+          tabIndex={track ? 0 : -1}
+          onKeyDown={(e) => {
+            if ((e.key === "Enter" || e.key === " ") && track) {
+              e.preventDefault();
+              setExpanded((v) => !v);
+            }
+          }}
+          aria-label={track ? "Show now playing" : undefined}
         >
           <span
             className={`np-art ${isPlaying ? "spinning" : ""}`}
@@ -203,7 +200,20 @@ export default function PlayerBar({
               </>
             )}
           </div>
-        </button>
+          {track && (
+            <button
+              className="add-to-playlist-fab"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenAddToPlaylist();
+              }}
+              aria-label="Add to playlist"
+              title="Add to playlist"
+            >
+              <PlusIcon width={22} height={22} />
+            </button>
+          )}
+        </div>
 
         <div className="transport-center">
           <div className="transport-controls">
@@ -253,6 +263,11 @@ export default function PlayerBar({
               value={Math.min(currentTime, duration || 0)}
               onChange={(e) => onSeek(Number(e.target.value))}
               disabled={!duration}
+              style={{
+                background: `linear-gradient(to right, var(--accent) ${
+                  duration ? (Math.min(currentTime, duration) / duration) * 100 : 0
+                }%, var(--divider) 0%)`,
+              }}
             />
             <span>{formatDuration(duration)}</span>
           </div>
@@ -267,6 +282,9 @@ export default function PlayerBar({
             step={0.01}
             value={volume}
             onChange={(e) => onVolumeChange(Number(e.target.value))}
+            style={{
+              background: `linear-gradient(to right, var(--accent) ${volume * 100}%, var(--divider) 0%)`,
+            }}
           />
         </div>
       </div>

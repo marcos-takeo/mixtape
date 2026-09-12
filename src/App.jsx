@@ -56,7 +56,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 220);
   const [showAbout, setShowAbout] = useState(false);
-  const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
+  const [addToPlaylistTrackId, setAddToPlaylistTrackId] = useState(null);
   const [showSplash, setShowSplash] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
 
@@ -596,10 +596,15 @@ export default function App() {
   }
 
   // --- Playlists ---
-  async function handleCreatePlaylist(name) {
-    const playlist = { id: `pl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, trackIds: [] };
+  async function handleCreatePlaylist(name, trackIdToAdd) {
+    const playlist = {
+      id: `pl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name,
+      trackIds: trackIdToAdd ? [trackIdToAdd] : [],
+    };
     await putPlaylist(playlist);
     setPlaylists((prev) => [...prev, playlist]);
+    return playlist;
   }
 
   async function handleDeletePlaylist(id) {
@@ -615,22 +620,6 @@ export default function App() {
         if (p.id === id) {
           changed = { ...p, name };
           return changed;
-        }
-        return p;
-      });
-      return updated;
-    });
-    if (changed) await putPlaylist(changed);
-  }
-
-  async function handleAddToPlaylist(trackId, playlistId) {
-    let changed = null;
-    setPlaylists((prev) => {
-      const updated = prev.map((p) => {
-        if (p.id === playlistId && !p.trackIds.includes(trackId)) {
-          const np = { ...p, trackIds: [...p.trackIds, trackId] };
-          changed = np;
-          return np;
         }
         return p;
       });
@@ -953,9 +942,8 @@ export default function App() {
             onSortChange={handleSortChange}
             reorderable={reorderable}
             onReorder={handleReorder}
-          playlists={playlists}
           activePlaylistId={activePlaylistId}
-          onAddToPlaylist={handleAddToPlaylist}
+          onOpenAddToPlaylist={(track) => setAddToPlaylistTrackId(track.id)}
           onRemoveFromPlaylist={handleRemoveFromPlaylist}
           />
         </div>
@@ -976,7 +964,7 @@ export default function App() {
         onToggleShuffle={() => setShuffle((v) => !v)}
         repeatMode={repeatMode}
         onCycleRepeat={cycleRepeatMode}
-        onOpenAddToPlaylist={() => setShowAddToPlaylist(true)}
+        onOpenAddToPlaylist={() => playingTrack && setAddToPlaylistTrackId(playingTrack.id)}
       />
 
       <audio
@@ -1014,14 +1002,20 @@ export default function App() {
 
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
 
-      {showAddToPlaylist && playingTrack && (
-        <AddToPlaylistModal
-          track={playingTrack}
-          playlists={playlists}
-          onToggle={handleToggleTrackInPlaylist}
-          onClose={() => setShowAddToPlaylist(false)}
-        />
-      )}
+      {addToPlaylistTrackId &&
+        (() => {
+          const t = tracks.find((x) => x.id === addToPlaylistTrackId);
+          if (!t) return null;
+          return (
+            <AddToPlaylistModal
+              track={t}
+              playlists={playlists}
+              onToggle={handleToggleTrackInPlaylist}
+              onCreatePlaylist={handleCreatePlaylist}
+              onClose={() => setAddToPlaylistTrackId(null)}
+            />
+          );
+        })()}
       </div>
     </>
   );

@@ -1,6 +1,7 @@
 import React, { useMemo, useRef } from "react";
 import { List } from "react-window";
 import { formatDuration } from "../lib/id3.js";
+import { LocalFileIcon, CloudIcon, PlusIcon } from "./Icons.jsx";
 
 const ROW_HEIGHT = 54;
 
@@ -17,9 +18,8 @@ function Row({
   reorderable,
   dragIndexRef,
   onReorder,
-  playlists,
   activePlaylistId,
-  onAddToPlaylist,
+  onOpenAddToPlaylist,
   onRemoveFromPlaylist,
 }) {
   const track = tracks[index];
@@ -71,6 +71,9 @@ function Row({
         {unavailable && " · needs file"}
       </button>
       <span className="track-album">{track.album || "—"}</span>
+      <span className="track-source" title={track.source === "drive" ? "Google Drive" : "Local file"}>
+        {track.source === "drive" ? <CloudIcon width={16} height={16} /> : <LocalFileIcon width={16} height={16} />}
+      </span>
       <span className="track-filename">{track.fileName || "—"}</span>
       <span className="track-duration">{formatDuration(track.durationSec)}</span>
       <span className="track-actions">
@@ -98,25 +101,13 @@ function Row({
           </button>
         ) : (
           <>
-            <select
-              className="add-to-playlist"
-              value=""
-              onChange={(e) => {
-                if (e.target.value) onAddToPlaylist(track.id, e.target.value);
-                e.target.value = "";
-              }}
-              disabled={!playlists.length}
+            <button
+              className="row-action-btn"
               title="Add to playlist"
+              onClick={() => onOpenAddToPlaylist(track)}
             >
-              <option value="" disabled>
-                +
-              </option>
-              {playlists.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+              <PlusIcon width={14} height={14} />
+            </button>
             <button
               className="row-action-btn"
               title="Remove from library"
@@ -151,9 +142,8 @@ export default function TrackList({
   onSortChange,
   reorderable,
   onReorder,
-  playlists,
   activePlaylistId,
-  onAddToPlaylist,
+  onOpenAddToPlaylist,
   onRemoveFromPlaylist,
 }) {
   const dragIndexRef = useRef(null);
@@ -169,9 +159,8 @@ export default function TrackList({
       reorderable,
       dragIndexRef,
       onReorder,
-      playlists,
       activePlaylistId,
-      onAddToPlaylist,
+      onOpenAddToPlaylist,
       onRemoveFromPlaylist,
     }),
     [
@@ -183,9 +172,8 @@ export default function TrackList({
       canEdit,
       reorderable,
       onReorder,
-      playlists,
       activePlaylistId,
-      onAddToPlaylist,
+      onOpenAddToPlaylist,
       onRemoveFromPlaylist,
     ]
   );
@@ -214,7 +202,10 @@ export default function TrackList({
         <button className="col-sort" onClick={() => onSortChange("artist")}>
           Artist {sortArrow("artist")}
         </button>
-        <span className="col-album">Album</span>
+        <button className="col-sort col-album" onClick={() => onSortChange("album")}>
+          Album {sortArrow("album")}
+        </button>
+        <span className="col-source" />
         <span className="col-file">File</span>
         <span className="col-right">Length</span>
         <span />

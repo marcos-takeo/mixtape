@@ -120,41 +120,48 @@ implementing its connect/list/fetch calls; nothing else needs to change.
 
 ## Library
 
-The table shows album art, **Title**, **Artist**, **Album**, **File
-name**, and **Length**, plus a pencil (edit tags), a trash icon (remove
-from library), and a "+ Playlist" picker on each row. The **Album**
-column hides on mobile portrait specifically to save width (title/artist
-need the room more there) — it's still fully searchable either way, that
-part isn't tied to whether the column happens to be visible. Removing a
-track only forgets it from the app's library — it never touches the
-actual file on disk or in Drive. Click the **Title** or **Artist**
-header to sort (click again to reverse, a third click returns to your
-custom order). When no sort is active, drag rows to reorder — that order
-is what Previous/Next follow, and it's persisted across reloads. The
-shuffle button in the transport bar overrides play order without
-touching the library's arrangement.
+The table shows album art, **Title**, **Artist**, **Album**, a small
+**source icon** (a computer glyph for local files, a cloud glyph for
+Drive — so you can tell at a glance where a track lives), **File name**,
+and **Length**, plus a pencil (edit tags), a **+** (add to playlist), and
+a trash icon (remove from library, with a confirmation prompt first —
+it's not reversible). The **Album** column hides on mobile portrait
+specifically to save width (title/artist need the room more there) —
+it's still fully searchable either way, that part isn't tied to whether
+the column happens to be visible. Removing a track only forgets it from
+the app's library — it never touches the actual file on disk or in
+Drive. Click the **Title**, **Artist**, or **Album** header to sort
+(click again to reverse, a third click returns to your custom order).
+When no sort is active, drag rows to reorder — that order is what
+Previous/Next follow, and it's persisted across reloads. The shuffle
+button in the transport bar overrides play order without touching the
+library's arrangement.
 
-The search box above the table filters by title, artist, **or album**.
-It requires a real substring match, or a *close* typo-level match
-(roughly one wrong letter, not "shares some letters") for anything
-longer than 3 characters — tightened deliberately so searching "eminem"
-doesn't surface "enemy". Search disables drag-reorder while active
-(there's no stable position to drag within a filtered view) but column
-sorting still works on top of it. The title and search bar stay pinned
-at the top as you scroll through a long library.
+The search box above the table filters by title, artist, or album. It
+requires a real substring match, or a *close* typo-level match (roughly
+one wrong letter, not "shares some letters") for anything longer than 3
+characters — tightened deliberately so searching "eminem" doesn't
+surface "enemy". Search disables drag-reorder while active (there's no
+stable position to drag within a filtered view) but column sorting
+still works on top of it. The title and search bar stay pinned at the
+top as you scroll through a long library.
 
 **Playlists** live at the top of the sidebar (above the local/cloud
-sources), each showing its track count — "+ New playlist" to create one,
-the **+ Playlist** dropdown on any row to add it to one (or the floating
-**+** button in the transport bar — see "Now playing" below — to add
-whatever's currently playing to several at once), the pencil to rename a
-playlist, and **×** to delete one (with a confirmation, since it's not
-reversible). Selecting a playlist filters the library view to just its
-tracks (in that playlist's own order, also draggable), and the **×** on
-each row there removes just that track from the playlist — your library
-and the file itself are untouched. Each connected Google account also
-gets its own auto-maintained playlist (named after its email) that's
-separate from ones you create by hand.
+sources), each showing its track count — "+ New playlist" to create one
+from there, the pencil to rename a playlist, and **×** to delete one
+(with a confirmation). The **+** on any library row (or the floating
+lime **+** in the transport bar for whatever's currently playing — see
+"Now playing" below) opens a checklist of your playlists with checkboxes
+reflecting current membership — check any number to add a track to
+several at once, and there's also a "New playlist name…" field right in
+that modal so you can create one on the spot (which immediately includes
+the track you were adding) instead of backing out to the sidebar first.
+Selecting a playlist from the sidebar filters the library view to just
+its tracks (in that playlist's own order, also draggable), and the **×**
+on each row there removes just that track from the playlist — your
+library and the file itself are untouched. Each connected Google account
+also gets its own auto-maintained playlist (named after its email)
+that's separate from ones you create by hand.
 
 ## Now playing
 
@@ -167,12 +174,14 @@ playing — it stops the moment playback ends (including the natural end
 of the last track with repeat off) rather than spinning indefinitely.
 The artist line shows the album too when known (`Artist // Album`), so
 you don't have to open the panel just to see what album a track is
-from. A floating **+** button (lime green, top-right of the transport
-bar, deliberately not aligned with the other controls, and layered above
-the now-playing panel so it stays reachable even while that's open)
-opens a checklist of your playlists — check any number of them to add
-the currently playing track to each; it reflects existing membership, so
-already-added playlists show pre-checked.
+from. A floating lime-green **+** button adds whatever's currently
+playing to one or more playlists (same modal and checklist as the
+per-row **+** in the library) — on desktop it sits at the far right of
+the transport bar, past the volume slider; on mobile portrait it moves
+to sit inline with the now-playing text instead (vertically centered
+against the title/artist, same idea just adapted to a narrower layout).
+It stays reachable above the now-playing panel even while that's open,
+rather than getting covered by it.
 
 Click the now-playing text or art to expand a panel above the transport
 bar with a large (350×350 on desktop, 200×200 on mobile portrait,
@@ -189,6 +198,11 @@ visually blocked by it. On mobile portrait, the panel's height uses the
 button that lives there) stays correctly positioned regardless of
 whether the phone browser's address bar happens to be showing — `vh`
 alone can miscalculate this and push content above the visible area.
+
+The seek bar and volume slider fill with lime green up to the current
+position/level, rather than staying a flat, uniform track color — makes
+it clearer at a glance how far into a track you are or how loud it's
+set without having to focus on the small thumb position specifically.
 
 All the transport icons (shuffle, prev/play/pause/next, repeat, volume,
 add-to-playlist) are plain SVGs that follow the app's own color scheme —
@@ -240,6 +254,15 @@ use hardware volume buttons anyway) to fit. This is also what makes
 wrapping the app for Android (via Trusted Web Activity, see below)
 reasonable — the layout already adapts to a phone-sized viewport rather
 than assuming a desktop window.
+
+The main content area (`.main`/`.transport`) had a subtle CSS Grid bug on
+mobile that's now fixed: they were still explicitly placed at the
+*desktop* grid columns even after the mobile breakpoint collapsed the
+layout to a single column, so Grid silently generated an extra implicit
+column to satisfy that placement — visually, the whole page appeared
+squeezed into roughly the right half of the screen with unexplained
+empty space on the left. Both elements now explicitly reset to
+`grid-column: 1` on mobile.
 
 On launch, a brief splash (`src/components/LoadingScreen.jsx`) shows the
 app's mixtape artwork on a solid black background for about two seconds

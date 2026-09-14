@@ -103,13 +103,6 @@ button {
   border-right: none;
 }
 
-<<<<<<< HEAD
-=======
-.app.sidebar-collapsed .main {
-  padding-left: 56px;
-}
-
->>>>>>> 0f6d14b64dd41098cb3e8903527d936260bd7eb2
 .sidebar-header {
   position: relative;
   display: flex;
@@ -148,7 +141,6 @@ button {
   color: var(--accent);
 }
 
-<<<<<<< HEAD
 .library-title-row {
   display: flex;
   align-items: center;
@@ -170,29 +162,6 @@ button {
 }
 
 .expand-menu-btn:hover {
-=======
-/* Only shown when the sidebar is collapsed — its own inline collapse
-   button (above) handles the expanded case, so this never has to float
-   over main content and risk overlapping the page title or logo. */
-.sidebar-toggle {
-  position: fixed;
-  top: 12px;
-  left: 12px;
-  z-index: 60;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--bg-elevated);
-  border: 1px solid var(--divider);
-  color: var(--text);
-  font-size: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.sidebar-toggle:hover {
->>>>>>> 0f6d14b64dd41098cb3e8903527d936260bd7eb2
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -1307,24 +1276,10 @@ input[type="range"]::-moz-range-thumb {
     transition: transform 0.2s ease;
   }
 
-<<<<<<< HEAD
-=======
-  .app.sidebar-collapsed .main {
-    padding-left: 50px;
-  }
-
->>>>>>> 0f6d14b64dd41098cb3e8903527d936260bd7eb2
   .app:not(.sidebar-collapsed) .sidebar {
     transform: translateX(0);
   }
 
-<<<<<<< HEAD
-=======
-  .sidebar-toggle {
-    left: 12px;
-  }
-
->>>>>>> 0f6d14b64dd41098cb3e8903527d936260bd7eb2
   .sidebar-backdrop {
     display: block;
     position: fixed;

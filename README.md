@@ -48,14 +48,11 @@ For Drive tracks, saving downloads the full file, rewrites its tag, and
 uploads it back to the same Drive file via the API — this needs the
 account to be connected with write scope (see below); if it's
 disconnected, the pencil is disabled with a "reconnect to edit" tooltip.
-<<<<<<< HEAD
 Editing a track while it's actively playing stops playback (the file's
 underlying audio source changes, so this is unavoidable) — the
 play/pause button correctly flips back to "play" when this happens,
 rather than continuing to show "pause" for audio that's no longer
 actually playing.
-=======
->>>>>>> 0f6d14b64dd41098cb3e8903527d936260bd7eb2
 
 ## Google Drive setup
 
@@ -102,7 +99,6 @@ it did before this scope existed).
 
 Click **Connect Google Drive** — Google's account picker and consent
 screen open, you grant access, and the app immediately scans the whole
-<<<<<<< HEAD
 account for MP3s (properly paginating through Drive's API, which caps
 each individual request at 1000 results — so accounts with more than
 1000 audio files are fully scanned across as many requests as it takes,
@@ -111,12 +107,6 @@ to your library (with tags read from each file directly, not left as
 generic placeholders), and creates or updates a playlist named after
 that account's email containing all of them. You can click **+ Add
 Google account** again
-=======
-account for MP3s, adds any it hasn't seen before to your library (with
-tags read from each file directly, not left as generic placeholders),
-and creates or updates a playlist named after that account's email
-containing all of them. You can click **+ Add Google account** again
->>>>>>> 0f6d14b64dd41098cb3e8903527d936260bd7eb2
 afterward to connect a *second* Google account the same way — each gets
 its own row (labeled by email), its own folder browser for
 manually browsing/adding individual files or folders, its own auto-named
@@ -276,7 +266,6 @@ The sidebar has its own collapse button (an SVG chevron, not a text
 character — those don't always center perfectly inside a circular
 button) inside it, floating in the corner so the logo above it can stay
 horizontally centered in the sidebar rather than sharing space with the
-<<<<<<< HEAD
 button. Collapsing it shows a **☰** button — this one lives inline in
 the library header, right next to the "Library" title, rather than
 floating over the page content. It used to be a fixed-position element
@@ -287,13 +276,6 @@ specifically, that reserved space ate a genuinely large chunk of an
 already-narrow screen. Moving it into the header's normal document flow
 means it only ever takes up its own actual width, and the whole
 reserved-padding hack is gone. On narrow screens (phones, or a
-=======
-button; collapsing it shows a small floating **☰** button (top-left) to
-bring it back. Keeping these as two
-separate controls — one inline, one floating — is deliberate: a
-floating button only has to exist (and risk overlapping something) when
-the sidebar isn't there to hold it. On narrow screens (phones, or a
->>>>>>> 0f6d14b64dd41098cb3e8903527d936260bd7eb2
 resized desktop window) it starts collapsed and the sidebar becomes an
 off-canvas drawer with a backdrop instead of a permanent column; the
 library table drops the file-name column (and, in portrait specifically,

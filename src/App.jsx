@@ -481,7 +481,6 @@ export default function App() {
   async function handleSaveTags(track, fields) {
     const record = persistedMetaRef.current.get(track.id);
 
-<<<<<<< HEAD
     // Editing swaps this track's audio source (new tagged bytes), which
     // stops whatever was playing — reflect that in the UI immediately
     // rather than leaving the pause icon showing for audio that's no
@@ -491,8 +490,6 @@ export default function App() {
       setIsPlaying(false);
     }
 
-=======
->>>>>>> 0f6d14b64dd41098cb3e8903527d936260bd7eb2
     let pictureBlob;
     if (fields.pictureFile) pictureBlob = fields.pictureFile;
     else if (fields.removeArt) pictureBlob = null;
@@ -927,18 +924,6 @@ export default function App() {
     <>
       {showSplash && <LoadingScreen fadingOut={splashFading} />}
       <div className={`app ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
-<<<<<<< HEAD
-=======
-      {!sidebarOpen && (
-        <button
-          className="sidebar-toggle"
-          onClick={() => setSidebarOpen(true)}
-          aria-label="Expand menu"
-        >
-          ☰
-        </button>
-      )}
->>>>>>> 0f6d14b64dd41098cb3e8903527d936260bd7eb2
       {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
 
       <Sidebar
@@ -965,7 +950,6 @@ export default function App() {
 
       <main className="main">
         <div className="library-header">
-<<<<<<< HEAD
           <div className="library-title-row">
             {!sidebarOpen && (
               <button
@@ -978,9 +962,6 @@ export default function App() {
             )}
             <h1>{activePlaylistId ? playlists.find((p) => p.id === activePlaylistId)?.name : "Library"}</h1>
           </div>
-=======
-          <h1>{activePlaylistId ? playlists.find((p) => p.id === activePlaylistId)?.name : "Library"}</h1>
->>>>>>> 0f6d14b64dd41098cb3e8903527d936260bd7eb2
           <div className="search-row">
             <input
               type="search"

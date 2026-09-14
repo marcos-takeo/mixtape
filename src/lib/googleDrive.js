@@ -76,18 +76,10 @@ export function requestGoogleAccessToken({ silent = false, hint } = {}) {
       return;
     }
 
-<<<<<<< HEAD
     const tokenClientConfig = {
       client_id: CLIENT_ID,
       scope: SCOPES,
       prompt: silent ? "" : "select_account",
-=======
-    const tokenClient = window.google.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID,
-      scope: SCOPES,
-      prompt: silent ? "" : "select_account",
-      hint: hint || undefined,
->>>>>>> 0f6d14b64dd41098cb3e8903527d936260bd7eb2
       callback: (response) => {
         if (response.error) {
           if (silent) {
@@ -106,15 +98,10 @@ export function requestGoogleAccessToken({ silent = false, hint } = {}) {
         }
         reject(new Error(err?.message || "Google sign-in failed or was cancelled."));
       },
-<<<<<<< HEAD
     };
     if (hint) tokenClientConfig.hint = hint;
 
     const tokenClient = window.google.accounts.oauth2.initTokenClient(tokenClientConfig);
-=======
-    });
-
->>>>>>> 0f6d14b64dd41098cb3e8903527d936260bd7eb2
     tokenClient.requestAccessToken();
   });
 }
@@ -137,7 +124,6 @@ export async function fetchGoogleAccountInfo(accessToken) {
 /** Lists the MP3s and subfolders directly inside a Drive folder ("root" = My Drive top level). */
 export async function listDriveFolder(accessToken, folderId = "root") {
   const q = `'${folderId}' in parents and trashed=false and (mimeType='application/vnd.google-apps.folder' or mimeType='audio/mpeg')`;
-<<<<<<< HEAD
   const files = [];
   let pageToken;
 
@@ -163,24 +149,6 @@ export async function listDriveFolder(accessToken, folderId = "root") {
   } while (pageToken);
 
   return files.map((f) => ({
-=======
-  const params = new URLSearchParams({
-    q,
-    fields: "files(id,name,mimeType,size)",
-    pageSize: "200",
-    orderBy: "folder,name",
-    spaces: "drive",
-  });
-
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!res.ok) {
-    throw new Error(`Drive folder listing failed (${res.status}). Try reconnecting this account.`);
-  }
-  const data = await res.json();
-  return (data.files || []).map((f) => ({
->>>>>>> 0f6d14b64dd41098cb3e8903527d936260bd7eb2
     id: f.id,
     name: f.name,
     isFolder: f.mimeType === "application/vnd.google-apps.folder",
@@ -190,7 +158,6 @@ export async function listDriveFolder(accessToken, folderId = "root") {
 
 /** Flat search for every MP3 anywhere in the account's Drive (not folder-scoped). */
 export async function listAllAudioFiles(accessToken) {
-<<<<<<< HEAD
   const files = [];
   let pageToken;
 
@@ -215,22 +182,6 @@ export async function listAllAudioFiles(accessToken) {
   } while (pageToken);
 
   return files.map((f) => ({
-=======
-  const params = new URLSearchParams({
-    q: "mimeType='audio/mpeg' and trashed=false",
-    fields: "files(id,name,size)",
-    pageSize: "1000",
-    spaces: "drive",
-  });
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!res.ok) {
-    throw new Error(`Drive search failed (${res.status}). Try reconnecting this account.`);
-  }
-  const data = await res.json();
-  return (data.files || []).map((f) => ({
->>>>>>> 0f6d14b64dd41098cb3e8903527d936260bd7eb2
     id: f.id,
     name: f.name,
     sizeBytes: f.size ? Number(f.size) : null,

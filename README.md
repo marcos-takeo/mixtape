@@ -117,17 +117,18 @@ you've connected (just the email, not the token) and, on each load,
 quietly tries to resume each one in the background using your existing
 browser session — no click needed if that session and prior consent are
 still valid. With more than one account connected, these resume **one at
-a time**, not all at once. This also ties into a deeper fix: the app now
-creates Google's token client **once** and reuses it (passing per-call
-overrides for silent vs. interactive mode, and which account to hint)
-rather than creating a brand-new one on every single request — which is
-what it used to do, and which is not the pattern Google's own docs use.
-Repeatedly re-initializing like that, especially across several
-silent-reconnect attempts every page load, was corrupting some internal
-state in Google's library after enough calls and surfacing as an obscure
-crash ("x.trim is not a function") on a later, unrelated connect attempt.
-Whenever an account resumes this way (or you reconnect it
-manually), it re-scans for new MP3s and updates that account's playlist,
+a time**, not all at once. The app also creates Google's token client
+**once** and reuses it (passing per-call overrides for silent vs.
+interactive mode, and which account to hint) rather than creating a
+brand-new one on every single request, which is the pattern Google's own
+docs use — though the actual, confirmed cause of an earlier "x.trim is
+not a function" crash on connect turned out to be simpler and more
+specific: the per-call override object uses the field name `login_hint`,
+not `hint` (that's only valid in the *initial* client setup, not this
+override) — a one-word mismatch that broke every connect attempt that
+went through the override path. Whenever an account resumes this way
+(or you reconnect it manually), it re-scans for new MP3s and updates
+that account's playlist,
 which is what keeps things "in sync" — not a live watch for changes,
 but a fresh check on every reconnect. If the silent resume can't happen
 (browser session expired, consent revoked, etc.), the account just stays

@@ -135,7 +135,11 @@ export function requestGoogleAccessToken({ silent = false, hint } = {}) {
     pendingSilent = silent;
 
     const overrideConfig = { prompt: silent ? "" : "select_account" };
-    if (hint) overrideConfig.hint = hint;
+    // Google's requestAccessToken() override object uses "login_hint" here —
+    // "hint" is only valid in the initial initTokenClient() config, not in
+    // this per-call override. Passing the wrong key name is what was
+    // actually causing the "x.trim is not a function" crash.
+    if (hint) overrideConfig.login_hint = hint;
     client.requestAccessToken(overrideConfig);
   });
 }

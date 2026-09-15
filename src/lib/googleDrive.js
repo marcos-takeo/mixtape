@@ -56,6 +56,55 @@ export function markSynced(connectionId) {
   localStorage.setItem(`mixtape:lastSync:${connectionId}`, String(Date.now()));
 }
 
+// A single token client, created once and reused for every request — this
+// is the pattern Google's own docs use. Creating a brand-new client via
+// initTokenClient() on every call (which is what this used to do, once per
+// silent-reconnect attempt on every page load, plus every manual connect)
+// isn't the supported usage and appears to corrupt some internal state in
+// the library after enough repeated calls, surfacing as an obscure
+// "x.trim is not a function" crash from deep inside Google's script.
+let tokenClient = null;
+let pendingResolve = null;
+let pendingReject = null;
+let pendingSilent = false;
+
+function getTokenClient() {
+  if (tokenClient) return tokenClient;
+  tokenClient = window.google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: (response) => {
+      const resolve = pendingResolve;
+      const reject = pendingReject;
+      const silent = pendingSilent;
+      pendingResolve = null;
+      pendingReject = null;
+      if (response.error) {
+        if (silent) {
+          resolve?.(null);
+          return;
+        }
+        reject?.(new Error(response.error));
+        return;
+      }
+      resolve?.(response.access_token);
+    },
+    error_callback: (err) => {
+      const resolve = pendingResolve;
+      const reject = pendingReject;
+      const silent = pendingSilent;
+      pendingResolve = null;
+      pendingReject = null;
+      if (silent) {
+        resolve?.(null);
+        return;
+      }
+      reject?.(new Error(err?.message || "Google sign-in failed or was cancelled."));
+    },
+  });
+  return tokenClient;
+}
+
 /**
  * Requests an access token. Two modes:
  * - Explicit connect (default): shows Google's account picker every time,
@@ -64,6 +113,10 @@ export function markSynced(connectionId) {
  *   session with no popup at all — used to auto-reconnect remembered
  *   accounts on load. Resolves to null (not a rejection) if it can't be
  *   done silently, since that's an expected outcome, not an error.
+ *
+ * Calls are expected to be serialized (never two in flight at once) — the
+ * app already does this (the silent-reconnect loop awaits each account in
+ * turn, and manual connects are one user action at a time).
  */
 export function requestGoogleAccessToken({ silent = false, hint } = {}) {
   return new Promise((resolve, reject) => {
@@ -76,33 +129,14 @@ export function requestGoogleAccessToken({ silent = false, hint } = {}) {
       return;
     }
 
-    const tokenClientConfig = {
-      client_id: CLIENT_ID,
-      scope: SCOPES,
-      prompt: silent ? "" : "select_account",
-      callback: (response) => {
-        if (response.error) {
-          if (silent) {
-            resolve(null);
-            return;
-          }
-          reject(new Error(response.error));
-          return;
-        }
-        resolve(response.access_token);
-      },
-      error_callback: (err) => {
-        if (silent) {
-          resolve(null);
-          return;
-        }
-        reject(new Error(err?.message || "Google sign-in failed or was cancelled."));
-      },
-    };
-    if (hint) tokenClientConfig.hint = hint;
+    const client = getTokenClient();
+    pendingResolve = resolve;
+    pendingReject = reject;
+    pendingSilent = silent;
 
-    const tokenClient = window.google.accounts.oauth2.initTokenClient(tokenClientConfig);
-    tokenClient.requestAccessToken();
+    const overrideConfig = { prompt: silent ? "" : "select_account" };
+    if (hint) overrideConfig.hint = hint;
+    client.requestAccessToken(overrideConfig);
   });
 }
 

@@ -117,10 +117,16 @@ you've connected (just the email, not the token) and, on each load,
 quietly tries to resume each one in the background using your existing
 browser session — no click needed if that session and prior consent are
 still valid. With more than one account connected, these resume **one at
-a time**, not all at once — Google's silent-reissue flow shares internal
-state across simultaneous calls, so firing them in parallel caused all
-but one account to silently fail every time rather than each resuming
-independently. Whenever an account resumes this way (or you reconnect it
+a time**, not all at once. This also ties into a deeper fix: the app now
+creates Google's token client **once** and reuses it (passing per-call
+overrides for silent vs. interactive mode, and which account to hint)
+rather than creating a brand-new one on every single request — which is
+what it used to do, and which is not the pattern Google's own docs use.
+Repeatedly re-initializing like that, especially across several
+silent-reconnect attempts every page load, was corrupting some internal
+state in Google's library after enough calls and surfacing as an obscure
+crash ("x.trim is not a function") on a later, unrelated connect attempt.
+Whenever an account resumes this way (or you reconnect it
 manually), it re-scans for new MP3s and updates that account's playlist,
 which is what keeps things "in sync" — not a live watch for changes,
 but a fresh check on every reconnect. If the silent resume can't happen

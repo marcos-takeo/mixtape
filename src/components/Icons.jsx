@@ -132,3 +132,24 @@ export function CloudIcon(props) {
     </svg>
   );
 }
+
+export function TrashIcon(props) {
+  return (
+    <svg {...base} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M4 7h16" />
+      <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+      <path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  );
+}
+
+export function CloseIcon(props) {
+  return (
+    <svg {...base} fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" {...props}>
+      <path d="M6 6l12 12" />
+      <path d="M18 6L6 18" />
+    </svg>
+  );
+}

@@ -1159,12 +1159,20 @@ button {
   justify-content: center;
 }
 
-.transport-controls button:hover {
-  color: var(--accent);
+.transport-controls button.shuffle-on {
+  /* Active state is intentionally different from hover so touch devices
+     can clearly distinguish an enabled toggle from a pointer hover. */
+  color: var(--accent-secondary);
 }
 
-.transport-controls button.shuffle-on {
-  color: var(--accent);
+@media (hover: hover) {
+  .transport-controls button:hover {
+    color: var(--accent);
+  }
+
+  .transport-controls button.shuffle-on:hover {
+    color: var(--accent);
+  }
 }
 
 .play-btn {
@@ -1379,7 +1387,11 @@ input[type="range"]::-moz-range-thumb {
 
 @media (max-width: 720px) and (orientation: portrait) {
   .track-row {
-    grid-template-columns: 36px 1.4fr 1fr 32px 64px;
+    /* Keep source and row actions in separate columns. The wider actions
+       column prevents edit/add/delete controls from overflowing into the
+       source column on narrow portrait screens. */
+    grid-template-columns: 36px minmax(0, 1.4fr) minmax(0, 1fr) 28px 100px;
+    gap: 6px;
   }
 
   .track-duration,

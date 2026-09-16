@@ -1,7 +1,7 @@
 import React, { useMemo, useRef } from "react";
 import { List } from "react-window";
 import { formatDuration } from "../lib/id3.js";
-import { LocalFileIcon, CloudIcon, PlusIcon } from "./Icons.jsx";
+import { LocalFileIcon, CloudIcon, PlusIcon, TrashIcon } from "./Icons.jsx";
 
 const ROW_HEIGHT = 54;
 
@@ -121,7 +121,7 @@ function Row({
                 }
               }}
             >
-              🗑
+              <TrashIcon width={14} height={14} />
             </button>
           </>
         )}

@@ -381,7 +381,12 @@ button {
 }
 
 .search-input::-webkit-search-cancel-button {
-  cursor: pointer;
+  /* Suppress the browser's native cancel icon (renders in the OS accent
+     color, e.g. blue on Android) — the app provides its own "Clear"
+     button styled to match the rest of the icon set. */
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
 }
 
 .empty-state {

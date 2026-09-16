@@ -222,7 +222,8 @@ export default function PlayerBar({
               onClick={onToggleShuffle}
               aria-label="Toggle shuffle"
               className={shuffle ? "shuffle-on" : ""}
-              title="Shuffle"
+              aria-pressed={shuffle}
+              title={shuffle ? "Shuffle: on" : "Shuffle: off"}
             >
               <ShuffleIcon />
             </button>
@@ -239,6 +240,7 @@ export default function PlayerBar({
               onClick={onCycleRepeat}
               aria-label="Cycle repeat mode"
               className={repeatMode !== "off" ? "shuffle-on" : ""}
+              aria-pressed={repeatMode !== "off"}
               title={
                 repeatMode === "one"
                   ? "Repeat: current song"

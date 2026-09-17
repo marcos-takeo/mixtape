@@ -99,6 +99,24 @@ export default function App() {
     typeof window !== "undefined" ? window.innerWidth > 720 : true
   );
 
+  // Detect iPad specifically (not just "any touch device") so we can nudge
+  // the transport bar up away from the bottom edge — on iPadOS, touching
+  // controls placed right at the bottom of the screen can trigger the
+  // system's app-switcher swipe-up gesture instead of hitting the control.
+  // CSS media queries can't reliably tell an iPad apart from a laptop, so
+  // this is done via UA/platform sniffing and applied as a class.
+  useEffect(() => {
+    if (typeof navigator === "undefined") return;
+    const ua = navigator.userAgent || "";
+    const isIPad =
+      /iPad/.test(ua) ||
+      // iPadOS 13+ reports as "Macintosh" but, unlike a real Mac, exposes touch points.
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    if (isIPad) {
+      document.documentElement.classList.add("platform-ipad");
+    }
+  }, []);
+
   const audioRef = useRef(null);
   const persistedMetaRef = useRef(new Map());
   const orderCounterRef = useRef(0);
@@ -950,6 +968,25 @@ export default function App() {
 
   function playPrev() {
     if (!queue.length) return;
+
+    // If we're meaningfully into the current song, "Back" restarts it
+    // instead of jumping to the previous track — standard media-player
+    // behavior. A second press (now near the start) goes to the previous
+    // track. With only one song in the library, this also means Back
+    // always has an effect: it restarts the current song.
+    const RESTART_THRESHOLD = 3; // seconds
+    if (currentTime > RESTART_THRESHOLD) {
+      handleSeek(0);
+      if (audioRef.current) audioRef.current.currentTime = 0;
+      return;
+    }
+
+    if (queue.length === 1) {
+      handleSeek(0);
+      if (audioRef.current) audioRef.current.currentTime = 0;
+      return;
+    }
+
     if (shuffle) {
       const prevId = shuffleHistoryRef.current.pop();
       if (prevId && queue.some((t) => t.id === prevId)) {

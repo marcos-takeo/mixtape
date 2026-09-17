@@ -170,6 +170,13 @@ export default function EditTagsModal({ track, hasHandle, onClose, onSave, onDow
         {info && <p className="notice-text">{info}</p>}
         {error && <p className="error-text">{error}</p>}
 
+        {track.fileName && (
+          <p className="editor-file-path" title={track.fileName}>
+            {track.source === "drive" ? "Google Drive: " : "File: "}
+            {track.fileName}
+          </p>
+        )}
+
         <div className="editor-buttons">
           <button type="button" className="link-btn" onClick={onClose} disabled={saving}>
             Cancel

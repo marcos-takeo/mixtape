@@ -3,6 +3,7 @@ import React, { useState } from "react";
 export default function AddToPlaylistModal({ track, playlists, onToggle, onCreatePlaylist, onClose }) {
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [filter, setFilter] = useState("");
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -17,6 +18,11 @@ export default function AddToPlaylistModal({ track, playlists, onToggle, onCreat
     }
   }
 
+  const query = filter.trim().toLowerCase();
+  const visiblePlaylists = query
+    ? playlists.filter((p) => p.name.toLowerCase().includes(query))
+    : playlists;
+
   return (
     <div className="editor-backdrop" onClick={onClose}>
       <div className="editor-modal playlist-picker-modal" onClick={(e) => e.stopPropagation()}>
@@ -28,11 +34,24 @@ export default function AddToPlaylistModal({ track, playlists, onToggle, onCreat
           {track.title} — {track.artist}
         </p>
 
+        {playlists.length > 0 && (
+          <input
+            type="search"
+            className="search-input playlist-picker-search"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Search playlists…"
+            aria-label="Search playlists"
+          />
+        )}
+
         {playlists.length === 0 ? (
           <p className="lyrics-status">No playlists yet — create one below.</p>
+        ) : visiblePlaylists.length === 0 ? (
+          <p className="lyrics-status">No playlists match "{filter.trim()}".</p>
         ) : (
           <ul className="playlist-picker-list">
-            {playlists.map((p) => {
+            {visiblePlaylists.map((p) => {
               const checked = p.trackIds.includes(track.id);
               return (
                 <li key={p.id}>

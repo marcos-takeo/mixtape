@@ -208,6 +208,15 @@ button {
   position: relative;
 }
 
+/* On iPad, the transport bar (and its seek slider) can sit close enough to
+   the bottom edge that a tap/drag there is intercepted by the system's
+   swipe-up app-switcher gesture instead of the slider. Add breathing room
+   so the seek bar is comfortably above that edge. `platform-ipad` is set
+   via JS device detection since CSS alone can't reliably identify an iPad. */
+.platform-ipad .transport {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 20px);
+}
+
 .np-info {
   position: static;
   display: flex;
@@ -857,6 +866,17 @@ button {
   padding: 8px 10px;
   font-size: 13px;
   font-family: var(--font-ui);
+}
+
+.editor-file-path {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0 0 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--divider);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .editor-buttons {
@@ -1549,6 +1569,11 @@ input[type="range"]::-moz-range-thumb {
 
 .playlist-picker-modal {
   max-width: 380px;
+}
+
+.playlist-picker-search {
+  width: 100%;
+  margin: 4px 0 12px;
 }
 
 .playlist-picker-list {

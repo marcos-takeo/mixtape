@@ -91,6 +91,13 @@ function Row({
         >
           ✎
         </button>
+        <button
+          className="row-action-btn"
+          title="Add to playlist"
+          onClick={() => onOpenAddToPlaylist(track)}
+        >
+          <PlusIcon width={14} height={14} />
+        </button>
         {activePlaylistId ? (
           <button
             className="row-action-btn"
@@ -100,30 +107,21 @@ function Row({
             ×
           </button>
         ) : (
-          <>
-            <button
-              className="row-action-btn"
-              title="Add to playlist"
-              onClick={() => onOpenAddToPlaylist(track)}
-            >
-              <PlusIcon width={14} height={14} />
-            </button>
-            <button
-              className="row-action-btn"
-              title="Remove from library"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    `Remove "${track.title}" from your library? This won't delete the file itself.`
-                  )
-                ) {
-                  onRemove(track);
-                }
-              }}
-            >
-              <TrashIcon width={14} height={14} />
-            </button>
-          </>
+          <button
+            className="row-action-btn"
+            title="Remove from library"
+            onClick={() => {
+              if (
+                window.confirm(
+                  `Remove "${track.title}" from your library? This won't delete the file itself.`
+                )
+              ) {
+                onRemove(track);
+              }
+            }}
+          >
+            <TrashIcon width={14} height={14} />
+          </button>
         )}
       </span>
     </div>

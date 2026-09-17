@@ -24,7 +24,13 @@ import {
 } from "./lib/googleDrive.js";
 import ColumnSettings from "./components/ColumnSettings.jsx";
 import { loadColumnPrefs, saveColumnPrefs } from "./lib/columnPrefs.js";
-import { tryGetFileSilently, requestFileAccess, writeFileViaHandle, downloadBlob } from "./lib/localFiles.js";
+import {
+  tryGetFileSilently,
+  requestFileAccess,
+  ensureFileWriteAccess,
+  writeFileViaHandle,
+  downloadBlob,
+} from "./lib/localFiles.js";
 import {
   getAllTracks,
   putTrack,
@@ -36,6 +42,7 @@ import {
   deletePlaylist as dbDeletePlaylist,
 } from "./lib/db.js";
 import { trackSearchScore } from "./lib/search.js";
+import { fetchAlbumArtwork } from "./lib/albumArtwork.js";
 import { useDebouncedValue } from "./lib/useDebouncedValue.js";
 
 // Fixed ID (not a generated one) so re-adding local files across sessions
@@ -623,8 +630,8 @@ export default function App() {
     }
 
     // No writable handle (classic-picker fallback, or unsupported browser) —
-    // we can't touch the original file, so offer a tagged copy instead. The
-    // app's own display still reflects the edit for this session.
+    // we can't touch the original file, so offer a tagged copy when the user
+    // explicitly clicks Save. The app's own display still reflects the edit.
     downloadBlob(newAudioBlob, track.fileName || `${fields.title}.mp3`);
     setTracks((prev) =>
       prev.map((t) =>
@@ -915,6 +922,13 @@ export default function App() {
     setCurrentTime(time);
   }
 
+  async function handleDownloadArtwork({ artist, title, album }) {
+    // Artwork lookup is intentionally read-only. The user must explicitly
+    // click Save tags before the artwork is embedded into the audio file.
+    const result = await fetchAlbumArtwork({ artist, title, album });
+    return { blob: result.blob, releaseId: result.releaseId };
+  }
+
   function canEditTrack(track) {
     if (track.source === "local") return !!track.file;
     if (track.source === "drive") {
@@ -1096,6 +1110,7 @@ export default function App() {
               hasHandle={canWriteInPlace}
               onClose={() => setEditingTrackId(null)}
               onSave={(fields) => handleSaveTags(t, fields)}
+              onDownloadArtwork={handleDownloadArtwork}
             />
           );
         })()}

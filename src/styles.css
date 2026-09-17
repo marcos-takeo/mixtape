@@ -1707,3 +1707,7 @@ input[type="range"]::-moz-range-thumb {
   accent-color: var(--accent);
   flex-shrink: 0;
 }
+
+.artwork-download-btn:hover {
+  color: var(--accent);
+}

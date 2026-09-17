@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 
-export default function EditTagsModal({ track, hasHandle, onClose, onSave }) {
+export default function EditTagsModal({ track, hasHandle, onClose, onSave, onDownloadArtwork }) {
   const [title, setTitle] = useState(track.title || "");
   const [artist, setArtist] = useState(track.artist || "");
   const [album, setAlbum] = useState(track.album || "");
   const [newArt, setNewArt] = useState(null); // File | null
   const [removeArt, setRemoveArt] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [artworkLoading, setArtworkLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
 
@@ -67,7 +68,7 @@ export default function EditTagsModal({ track, hasHandle, onClose, onSave }) {
                 type="file"
                 accept="image/*"
                 hidden
-                disabled={saving}
+                disabled={saving || artworkLoading}
                 onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) {
@@ -77,11 +78,45 @@ export default function EditTagsModal({ track, hasHandle, onClose, onSave }) {
                 }}
               />
             </label>
+            {onDownloadArtwork && (
+              <button
+                type="button"
+                className="source-btn"
+                disabled={saving || artworkLoading || !artist.trim() || !title.trim() || !album.trim()}
+                onClick={async () => {
+                  setArtworkLoading(true);
+                  setSaving(true);
+                  setError("");
+                  setInfo("");
+                  try {
+                    const result = await onDownloadArtwork({
+                      trackId: track.id,
+                      artist: artist.trim(),
+                      title: title.trim(),
+                      album: album.trim(),
+                    });
+                    // Only stage the downloaded artwork in the editor.
+                    // The user's explicit Save button performs the actual
+                    // ID3 write, so fetching artwork never changes the file.
+                    setNewArt(result.blob);
+                    setRemoveArt(false);
+                    setInfo("Album art found. Click Save tags to apply it to the file.");
+                  } catch (err) {
+                    setError(err?.message || "Could not find album art.");
+                  } finally {
+                    setArtworkLoading(false);
+                    setSaving(false);
+                  }
+                }}
+              >
+                {artworkLoading ? "Finding album art…" : "Download album art"}
+              </button>
+            )}
             {previewUrl && (
               <button
                 type="button"
                 className="link-btn"
-                disabled={saving}
+                disabled={saving || artworkLoading}
                 onClick={() => {
                   setNewArt(null);
                   setRemoveArt(true);
@@ -137,13 +172,11 @@ export default function EditTagsModal({ track, hasHandle, onClose, onSave }) {
 
         <div className="editor-buttons">
           <button type="button" className="link-btn" onClick={onClose} disabled={saving}>
-            {info ? "Close" : "Cancel"}
+            Cancel
           </button>
-          {!info && (
-            <button type="submit" className="editor-save-btn" disabled={saving}>
-              {saving ? "Saving…" : "Save tags"}
-            </button>
-          )}
+          <button type="submit" className="editor-save-btn" disabled={saving || artworkLoading}>
+            {saving ? "Saving…" : "Save tags"}
+          </button>
         </div>
       </form>
     </div>

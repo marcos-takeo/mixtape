@@ -67,7 +67,14 @@ export async function requestFileAccess(handle) {
  * (e.g. it came from the classic <input> fallback, which has no handle
  * at all) — the caller should offer a download instead in that case.
  */
-export async function writeFileViaHandle(handle, blob) {
+/**
+ * Ensures a local file handle has read/write permission while still inside
+ * the user's click gesture. This matters for actions that do network work
+ * before the actual write: permission prompts generally cannot be opened
+ * after an asynchronous fetch has consumed the browser's transient user
+ * activation.
+ */
+export async function ensureFileWriteAccess(handle) {
   if (!handle || !handle.createWritable) {
     throw new Error("This browser can't write to local files directly.");
   }
@@ -77,6 +84,17 @@ export async function writeFileViaHandle(handle, blob) {
       throw new Error("Write permission was not granted.");
     }
   }
+  return handle;
+}
+
+export async function writeFileViaHandle(handle, blob) {
+  if (!handle || !handle.createWritable) {
+    throw new Error("This browser can't write to local files directly.");
+  }
+  // Permission is normally requested by ensureFileWriteAccess() while the
+  // action is still inside the user's click gesture. Keep this check here
+  // too so direct callers remain safe.
+  await ensureFileWriteAccess(handle);
 
   // Refreshing the handle's cached state right before writing (and retrying
   // once on failure) works around a known Chromium quirk: a handle that's

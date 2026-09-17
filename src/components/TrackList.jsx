@@ -2,8 +2,77 @@ import React, { useMemo, useRef } from "react";
 import { List } from "react-window";
 import { formatDuration } from "../lib/id3.js";
 import { LocalFileIcon, CloudIcon, PlusIcon, TrashIcon } from "./Icons.jsx";
+import { OPTIONAL_COLUMNS } from "../lib/columnPrefs.js";
 
 const ROW_HEIGHT = 54;
+
+// Per-breakpoint column layout. Each entry lists the columns that can
+// appear at that breakpoint (in DOM order) with their track width, and
+// which of those are already force-hidden at that breakpoint regardless
+// of the user's column settings (matching the existing responsive rules
+// in styles.css). Mandatory columns (art, title, actions) are never
+// hidden and always included.
+const BREAKPOINT_LAYOUTS = {
+  desktop: {
+    order: ["art", "title", "artist", "album", "source", "file", "duration", "actions"],
+    width: {
+      art: "44px",
+      title: "1.3fr",
+      artist: "1fr",
+      album: "1fr",
+      source: "36px",
+      file: "1fr",
+      duration: "64px",
+      actions: "168px",
+    },
+    forcedHidden: [],
+  },
+  mobile: {
+    order: ["art", "title", "artist", "album", "source", "duration", "actions"],
+    width: {
+      art: "36px",
+      title: "1.1fr",
+      artist: "1fr",
+      album: "1fr",
+      source: "32px",
+      duration: "46px",
+      actions: "64px",
+    },
+    forcedHidden: ["file"],
+  },
+  mobilePortrait: {
+    order: ["art", "title", "artist", "source", "actions"],
+    width: {
+      art: "36px",
+      title: "minmax(0, 1.4fr)",
+      artist: "minmax(0, 1fr)",
+      source: "28px",
+      actions: "100px",
+    },
+    forcedHidden: ["file", "album", "duration"],
+  },
+};
+
+function buildTemplate(layoutKey, hiddenSet) {
+  const layout = BREAKPOINT_LAYOUTS[layoutKey];
+  return layout.order
+    .filter((col) => !OPTIONAL_COLUMNS.includes(col) || !hiddenSet.has(col))
+    .map((col) => layout.width[col])
+    .join(" ");
+}
+
+function buildColumnLayout(visibleColumns) {
+  const hiddenSet = new Set(OPTIONAL_COLUMNS.filter((c) => !visibleColumns.includes(c)));
+  const style = {
+    "--track-columns": buildTemplate("desktop", hiddenSet),
+    "--track-columns-mobile": buildTemplate("mobile", hiddenSet),
+    "--track-columns-mobile-portrait": buildTemplate("mobilePortrait", hiddenSet),
+  };
+  const hideClassName = OPTIONAL_COLUMNS.filter((c) => hiddenSet.has(c))
+    .map((c) => `hide-col-${c}`)
+    .join(" ");
+  return { style, hideClassName };
+}
 
 function Row({
   index,
@@ -143,8 +212,11 @@ export default function TrackList({
   activePlaylistId,
   onOpenAddToPlaylist,
   onRemoveFromPlaylist,
+  visibleColumns,
 }) {
   const dragIndexRef = useRef(null);
+  const columns = visibleColumns || OPTIONAL_COLUMNS;
+  const { style: columnStyle, hideClassName } = useMemo(() => buildColumnLayout(columns), [columns]);
 
   const rowProps = useMemo(
     () => ({
@@ -191,13 +263,13 @@ export default function TrackList({
   }
 
   return (
-    <div className="track-list">
+    <div className={`track-list ${hideClassName}`} style={columnStyle}>
       <div className="track-row track-header">
         <span />
         <button className="col-sort" onClick={() => onSortChange("title")}>
           Title {sortArrow("title")}
         </button>
-        <button className="col-sort" onClick={() => onSortChange("artist")}>
+        <button className="col-sort col-artist" onClick={() => onSortChange("artist")}>
           Artist {sortArrow("artist")}
         </button>
         <button className="col-sort col-album" onClick={() => onSortChange("album")}>
@@ -205,7 +277,7 @@ export default function TrackList({
         </button>
         <span className="col-source" />
         <span className="col-file">File</span>
-        <span className="col-right">Length</span>
+        <span className="col-right col-duration">Length</span>
         <span />
       </div>
 

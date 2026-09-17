@@ -22,6 +22,8 @@ import {
   isSyncDue,
   markSynced,
 } from "./lib/googleDrive.js";
+import ColumnSettings from "./components/ColumnSettings.jsx";
+import { loadColumnPrefs, saveColumnPrefs } from "./lib/columnPrefs.js";
 import { tryGetFileSilently, requestFileAccess, writeFileViaHandle, downloadBlob } from "./lib/localFiles.js";
 import {
   getAllTracks,
@@ -67,6 +69,7 @@ export default function App() {
   const [sortDir, setSortDir] = useState("asc");
   const [playlists, setPlaylists] = useState([]);
   const [activePlaylistId, setActivePlaylistId] = useState(null);
+  const [visibleColumns, setVisibleColumns] = useState(() => loadColumnPrefs(null));
   const [editingTrackId, setEditingTrackId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 220);
@@ -97,6 +100,20 @@ export default function App() {
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
+
+  // Column visibility is remembered per playlist (and separately for the
+  // Library/all-tracks view), so reload it whenever the active view changes.
+  useEffect(() => {
+    setVisibleColumns(loadColumnPrefs(activePlaylistId));
+  }, [activePlaylistId]);
+
+  function handleToggleColumn(col) {
+    setVisibleColumns((prev) => {
+      const next = prev.includes(col) ? prev.filter((c) => c !== col) : [...prev, col];
+      saveColumnPrefs(activePlaylistId, next);
+      return next;
+    });
+  }
 
   // --- Load persisted library + playlists on mount ---
   useEffect(() => {
@@ -961,16 +978,19 @@ export default function App() {
       <main className="main">
         <div className="library-header">
           <div className="library-title-row">
-            {!sidebarOpen && (
-              <button
-                className="expand-menu-btn"
-                onClick={() => setSidebarOpen(true)}
-                aria-label="Expand menu"
-              >
-                ☰
-              </button>
-            )}
-            <h1>{activePlaylistId ? playlists.find((p) => p.id === activePlaylistId)?.name : "Library"}</h1>
+            <div className="library-title-left">
+              {!sidebarOpen && (
+                <button
+                  className="expand-menu-btn"
+                  onClick={() => setSidebarOpen(true)}
+                  aria-label="Expand menu"
+                >
+                  ☰
+                </button>
+              )}
+              <h1>{activePlaylistId ? playlists.find((p) => p.id === activePlaylistId)?.name : "Library"}</h1>
+            </div>
+            <ColumnSettings visibleColumns={visibleColumns} onToggle={handleToggleColumn} />
           </div>
           <div className="search-row">
             <input
@@ -1024,6 +1044,7 @@ export default function App() {
           activePlaylistId={activePlaylistId}
           onOpenAddToPlaylist={(track) => setAddToPlaylistTrackId(track.id)}
           onRemoveFromPlaylist={handleRemoveFromPlaylist}
+          visibleColumns={visibleColumns}
           />
         </div>
       </main>

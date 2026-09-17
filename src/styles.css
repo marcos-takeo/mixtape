@@ -144,7 +144,15 @@ button {
 .library-title-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
+}
+
+.library-title-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .expand-menu-btn {
@@ -414,7 +422,7 @@ button {
 
 .track-row {
   display: grid;
-  grid-template-columns: 44px 1.3fr 1fr 1fr 36px 1fr 64px 168px;
+  grid-template-columns: var(--track-columns, 44px 1.3fr 1fr 1fr 36px 1fr 64px 168px);
   align-items: center;
   gap: 12px;
   padding: 8px 8px;
@@ -551,6 +559,34 @@ button {
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+/* User-chosen column visibility (per playlist). Hiding via display:none
+   removes the item from grid flow entirely, so it must stay in sync with
+   the reduced track lists in --track-columns* above. */
+.track-list.hide-col-artist .col-artist,
+.track-list.hide-col-artist .track-artist {
+  display: none;
+}
+
+.track-list.hide-col-album .col-album,
+.track-list.hide-col-album .track-album {
+  display: none;
+}
+
+.track-list.hide-col-source .col-source,
+.track-list.hide-col-source .track-source {
+  display: none;
+}
+
+.track-list.hide-col-file .col-file,
+.track-list.hide-col-file .track-filename {
+  display: none;
+}
+
+.track-list.hide-col-duration .col-duration,
+.track-list.hide-col-duration .track-duration {
+  display: none;
 }
 
 .track-actions {
@@ -1311,7 +1347,7 @@ input[type="range"]::-moz-range-thumb {
 
   /* Library table: drop the file-name column, tighten the rest */
   .track-row {
-    grid-template-columns: 36px 1.1fr 1fr 1fr 32px 46px 64px;
+    grid-template-columns: var(--track-columns-mobile, 36px 1.1fr 1fr 1fr 32px 46px 64px);
     gap: 8px;
     padding: 8px 4px;
   }
@@ -1395,7 +1431,7 @@ input[type="range"]::-moz-range-thumb {
     /* Keep source and row actions in separate columns. The wider actions
        column prevents edit/add/delete controls from overflowing into the
        source column on narrow portrait screens. */
-    grid-template-columns: 36px minmax(0, 1.4fr) minmax(0, 1fr) 28px 100px;
+    grid-template-columns: var(--track-columns-mobile-portrait, 36px minmax(0, 1.4fr) minmax(0, 1fr) 28px 100px);
     gap: 6px;
   }
 
@@ -1597,3 +1633,77 @@ input[type="range"]::-moz-range-thumb {
   }
 }
 
+/* ---------- Column visibility settings (per playlist) ---------- */
+
+.columns-menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.columns-settings-btn {
+  background: none;
+  border: 1px solid var(--divider);
+  color: var(--text-muted);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.columns-settings-btn:hover,
+.columns-settings-btn[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.columns-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--divider);
+  border-radius: 8px;
+  padding: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 30;
+}
+
+.columns-menu-title {
+  margin: 2px 4px 8px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.columns-menu-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.columns-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 4px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.columns-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+.columns-menu-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}

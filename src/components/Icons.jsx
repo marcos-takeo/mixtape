@@ -153,3 +153,13 @@ export function CloseIcon(props) {
     </svg>
   );
 }
+
+export function ColumnsIcon(props) {
+  return (
+    <svg {...base} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M9 4v16" />
+      <path d="M15 4v16" />
+    </svg>
+  );
+}

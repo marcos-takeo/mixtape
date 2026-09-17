@@ -147,7 +147,7 @@ export default function Sidebar({
         {driveError && <p className="error-text">{driveError}</p>}
 
         {isDriveConfigured() ? (
-          <button className="source-btn" onClick={onConnectDrive}>
+          <button className="source-btn" onClick={() => onConnectDrive()}>
             {driveConnections.length ? "+ Add Google account" : "Connect Google Drive"}
           </button>
         ) : (

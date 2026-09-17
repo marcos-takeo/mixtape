@@ -102,7 +102,7 @@ export async function deleteTrack(id) {
 }
 
 // --- Playlists ---
-// { id, name, trackIds: [] }
+// { id, name, trackIds: [], pinned, order, artworkBlob }
 
 export async function putPlaylist(playlist) {
   const { t, store } = await tx(STORE_PLAYLISTS, "readwrite");

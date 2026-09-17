@@ -44,6 +44,7 @@ import {
 import { trackSearchScore } from "./lib/search.js";
 import { fetchAlbumArtwork } from "./lib/albumArtwork.js";
 import { useDebouncedValue } from "./lib/useDebouncedValue.js";
+import PlaylistManager from "./components/PlaylistManager.jsx";
 
 // Fixed ID (not a generated one) so re-adding local files across sessions
 // always lands in the same playlist instead of creating duplicates.
@@ -76,6 +77,7 @@ export default function App() {
   const [sortDir, setSortDir] = useState("asc");
   const [playlists, setPlaylists] = useState([]);
   const [activePlaylistId, setActivePlaylistId] = useState(null);
+  const [activePage, setActivePage] = useState("library");
   const [visibleColumns, setVisibleColumns] = useState(() => loadColumnPrefs(null));
   const [editingTrackId, setEditingTrackId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -140,7 +142,22 @@ export default function App() {
         }
       }
 
-      setPlaylists(await getAllPlaylists());
+      const loadedPlaylists = await getAllPlaylists();
+      const normalized = loadedPlaylists.map((p, index) => ({
+        ...p,
+        trackIds: Array.isArray(p.trackIds) ? p.trackIds : [],
+        pinned: !!p.pinned,
+        order: Number.isFinite(p.order) ? p.order : index,
+      }));
+      if (!normalized.some((p) => p.id === LOCAL_FILES_PLAYLIST_ID)) {
+        const localPlaylist = { id: LOCAL_FILES_PLAYLIST_ID, name: "Local files", trackIds: [], pinned: false, order: normalized.length, artworkBlob: null };
+        normalized.push(localPlaylist);
+        await putPlaylist(localPlaylist);
+      }
+      // Keep the built-in Local files playlist in the actual playlist state as
+      // well as the management-page fallback, so it is always visible in the
+      // sidebar even before the first local track is added.
+      setPlaylists(normalized);
 
       // Try to silently resume any previously-connected Google accounts —
       // no popup, no click required, just a background token refresh using
@@ -662,6 +679,9 @@ export default function App() {
       id: `pl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       name,
       trackIds: trackIdToAdd ? [trackIdToAdd] : [],
+      pinned: false,
+      order: playlists.length,
+      artworkBlob: null,
     };
     await putPlaylist(playlist);
     setPlaylists((prev) => [...prev, playlist]);
@@ -682,19 +702,21 @@ export default function App() {
         putPlaylist(updated);
         return prev.map((p) => (p.id === LOCAL_FILES_PLAYLIST_ID ? updated : p));
       }
-      const created = { id: LOCAL_FILES_PLAYLIST_ID, name: "Local files", trackIds: [trackId] };
+      const created = { id: LOCAL_FILES_PLAYLIST_ID, name: "Local files", trackIds: [trackId], pinned: false, order: 1, artworkBlob: null };
       putPlaylist(created);
       return [...prev, created];
     });
   }
 
   async function handleDeletePlaylist(id) {
+    if (id === LOCAL_FILES_PLAYLIST_ID || id === "all-tracks") return;
     await dbDeletePlaylist(id);
     setPlaylists((prev) => prev.filter((p) => p.id !== id));
     if (activePlaylistId === id) setActivePlaylistId(null);
   }
 
   async function handleRenamePlaylist(id, name) {
+    if (id === LOCAL_FILES_PLAYLIST_ID || id === "all-tracks") return;
     let changed = null;
     setPlaylists((prev) => {
       const updated = prev.map((p) => {
@@ -743,6 +765,31 @@ export default function App() {
       return updated;
     });
     if (changed) await putPlaylist(changed);
+  }
+
+  function navigateToLibrary(playlistId = null) {
+    setActivePage("library");
+    setActivePlaylistId(playlistId);
+    setSearchQuery("");
+  }
+
+  function navigateToPlaylists() {
+    setActivePage("playlists");
+    setActivePlaylistId(null);
+    setSearchQuery("");
+  }
+
+  async function handleUpdatePlaylist(updatedPlaylist) {
+    await putPlaylist(updatedPlaylist);
+    setPlaylists((prev) => prev.map((p) => (p.id === updatedPlaylist.id ? updatedPlaylist : p)));
+  }
+
+  async function handleSetPlaylistOrder(nextPlaylists) {
+    const normalized = nextPlaylists.map((p, index) => ({ ...p, order: index }));
+    setPlaylists(normalized);
+    await Promise.all(normalized.filter((p) => p.id !== LOCAL_FILES_PLAYLIST_ID).map((p) => putPlaylist(p)));
+    const local = normalized.find((p) => p.id === LOCAL_FILES_PLAYLIST_ID);
+    if (local) await putPlaylist(local);
   }
 
   // --- Sorting ---
@@ -980,10 +1027,10 @@ export default function App() {
         onClearLibrary={handleClearLibrary}
         playlists={playlists}
         activePlaylistId={activePlaylistId}
-        onSelectPlaylist={setActivePlaylistId}
+        activePage={activePage}
+        onOpenPlaylists={navigateToPlaylists}
+        onSelectPlaylist={navigateToLibrary}
         onCreatePlaylist={handleCreatePlaylist}
-        onRenamePlaylist={handleRenamePlaylist}
-        onDeletePlaylist={handleDeletePlaylist}
         onCollapse={() => setSidebarOpen(false)}
         libraryCount={tracks.length}
         onOpenAbout={() => setShowAbout(true)}
@@ -1002,24 +1049,28 @@ export default function App() {
                   ☰
                 </button>
               )}
-              <h1>{activePlaylistId ? playlists.find((p) => p.id === activePlaylistId)?.name : "Library"}</h1>
+              <h1>{activePage === "playlists" ? "Playlists" : activePlaylistId ? playlists.find((p) => p.id === activePlaylistId)?.name : "All tracks"}</h1>
             </div>
-            <ColumnSettings visibleColumns={visibleColumns} onToggle={handleToggleColumn} />
-          </div>
-          <div className="search-row">
-            <input
-              type="search"
-              className="search-input"
-              placeholder="Search title, artist, or album…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            {searchQuery && (
-              <button className="link-btn" onClick={() => setSearchQuery("")}>
-                Clear
-              </button>
+            {activePage === "library" && (
+              <ColumnSettings visibleColumns={visibleColumns} onToggle={handleToggleColumn} />
             )}
           </div>
+          {activePage === "library" ? (
+            <div className="search-row">
+              <input
+                type="search"
+                className="search-input"
+                placeholder="Search title, artist, or album…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button className="link-btn" onClick={() => setSearchQuery("")}>
+                  Clear
+                </button>
+              )}
+            </div>
+          ) : null}
           {notice && (
             <p className="notice-text">
               {notice}
@@ -1043,6 +1094,17 @@ export default function App() {
           )}
         </div>
         <div className="library-body">
+          {activePage === "playlists" ? (
+            <PlaylistManager
+              playlists={playlists}
+              trackCount={tracks.length}
+              onCreatePlaylist={handleCreatePlaylist}
+              onUpdatePlaylist={handleUpdatePlaylist}
+              onDeletePlaylist={handleDeletePlaylist}
+              onReorderPlaylists={handleSetPlaylistOrder}
+              onOpenPlaylist={navigateToLibrary}
+            />
+          ) : (
           <TrackList
             tracks={queue}
             currentId={playingTrack?.id}
@@ -1060,6 +1122,7 @@ export default function App() {
           onRemoveFromPlaylist={handleRemoveFromPlaylist}
           visibleColumns={visibleColumns}
           />
+          )}
         </div>
       </main>
 

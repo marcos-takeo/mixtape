@@ -19,10 +19,10 @@ export default function Sidebar({
   playlists,
   libraryCount,
   activePlaylistId,
+  activePage,
+  onOpenPlaylists,
   onSelectPlaylist,
   onCreatePlaylist,
-  onRenamePlaylist,
-  onDeletePlaylist,
   onCollapse,
   onOpenAbout,
 }) {
@@ -52,17 +52,6 @@ export default function Sidebar({
     if (name && name.trim()) onCreatePlaylist(name.trim());
   }
 
-  function handleRenamePlaylist(p) {
-    const name = window.prompt("Rename playlist", p.name);
-    if (name && name.trim() && name.trim() !== p.name) onRenamePlaylist(p.id, name.trim());
-  }
-
-  function handleDeletePlaylist(p) {
-    if (window.confirm(`Delete playlist "${p.name}"? This won't delete your tracks.`)) {
-      onDeletePlaylist(p.id);
-    }
-  }
-
   function handleDisconnect(conn) {
     if (window.confirm(`Disconnect "${conn.label}"? Tracks added from it will need reconnecting to play.`)) {
       onDisconnectDrive(conn.id);
@@ -79,39 +68,30 @@ export default function Sidebar({
       </div>
 
       <div className="source-group">
-        <p className="source-label">Playlists</p>
+        <button className={`source-label sidebar-playlists-link ${activePage === "playlists" ? "active" : ""}`} onClick={onOpenPlaylists}>Playlists</button>
         <ul className="playlist-list">
           <li>
             <button
-              className={`playlist-item ${activePlaylistId === null ? "active" : ""}`}
+              className={`playlist-item ${activePage === "library" && activePlaylistId === null ? "active" : ""}`}
               onClick={() => onSelectPlaylist(null)}
             >
               <span className="playlist-name">All tracks</span>
               <span className="playlist-count">{libraryCount}</span>
             </button>
           </li>
-          {playlists.map((p) => (
-            <li key={p.id} className="playlist-row">
+          {[...playlists].sort((a, b) => {
+            if (a.id === "local-files") return -1;
+            if (b.id === "local-files") return 1;
+            if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+            return (a.order ?? 0) - (b.order ?? 0);
+          }).map((p) => (
+            <li key={p.id}>
               <button
-                className={`playlist-item ${activePlaylistId === p.id ? "active" : ""}`}
+                className={`playlist-item ${activePage === "library" && activePlaylistId === p.id ? "active" : ""}`}
                 onClick={() => onSelectPlaylist(p.id)}
               >
                 <span className="playlist-name">{p.name}</span>
                 <span className="playlist-count">{p.trackIds.length}</span>
-              </button>
-              <button
-                className="row-action-btn"
-                title="Rename playlist"
-                onClick={() => handleRenamePlaylist(p)}
-              >
-                ✎
-              </button>
-              <button
-                className="row-action-btn"
-                title="Delete playlist"
-                onClick={() => handleDeletePlaylist(p)}
-              >
-                ×
               </button>
             </li>
           ))}

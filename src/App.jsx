@@ -40,6 +40,16 @@ import { useDebouncedValue } from "./lib/useDebouncedValue.js";
 // always lands in the same playlist instead of creating duplicates.
 const LOCAL_FILES_PLAYLIST_ID = "local-files";
 
+// The <audio> element's `src` is the one place track data reaches a real
+// DOM sink, so we only ever hand it a same-origin, browser-generated
+// "blob:" URL — the kind URL.createObjectURL() returns. Every track's
+// objectUrl is created that way (never from a filename, tag, or other
+// string a file could influence), but this guard makes that explicit
+// and refuses anything else, rather than trusting the value implicitly.
+function safeAudioSrc(url) {
+  return typeof url === "string" && url.startsWith("blob:") ? url : undefined;
+}
+
 export default function App() {
   const [tracks, setTracks] = useState([]);
   const [currentTrackId, setCurrentTrackId] = useState(null);
@@ -1038,7 +1048,7 @@ export default function App() {
 
       <audio
         ref={audioRef}
-        src={playingTrack?.objectUrl || undefined}
+        src={safeAudioSrc(playingTrack?.objectUrl)}
         onTimeUpdate={(e) => setCurrentTime(e.target.currentTime)}
         onLoadedMetadata={(e) => {
           setTracks((prev) =>

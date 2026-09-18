@@ -44,7 +44,12 @@ async function findRelease(artist, album) {
   const query = `artist:"${artist.replace(/([\\\"])/g, "\\$1")}" AND release:"${album.replace(/([\\\"])/g, "\\$1")}"`;
   const url = `${MB_BASE}/release/?query=${encodeURIComponent(query)}&fmt=json&limit=10&inc=artist-credits+release-groups`;
   const response = await queueMusicBrainzRequest(url);
-  if (!response.ok) throw new Error(`MusicBrainz returned HTTP ${response.status}`);
+  if (!response.ok) {
+    if (response.status === 503) {
+      throw new Error("MusicBrainz is busy. Please, try again.");
+    }
+    throw new Error(`MusicBrainz returned HTTP ${response.status}`);
+  }
 
   const data = await response.json();
   const releases = data.releases || [];

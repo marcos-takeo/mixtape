@@ -21,6 +21,8 @@ import {
   forgetAccount,
   isSyncDue,
   markSynced,
+  clearFolderNameCache,
+  resolveDriveFilePath,
 } from "./lib/googleDrive.js";
 import ColumnSettings from "./components/ColumnSettings.jsx";
 import { loadColumnPrefs, saveColumnPrefs } from "./lib/columnPrefs.js";
@@ -454,6 +456,10 @@ export default function App() {
   async function syncDriveAccountLibrary(connection) {
     const files = await listAllAudioFiles(connection.accessToken);
     await Promise.all(files.map((f) => addDriveTrackAndTag(f, connection)));
+    // Folder names/locations may have changed since the last sync — drop
+    // the cached folder-name lookups used by the Edit Tags "file path"
+    // display so the next path resolution reflects any renames/moves.
+    clearFolderNameCache();
 
     const playlistId = `plg:${connection.id}`;
     const trackIds = files.map((f) => `drive:${f.id}`);
@@ -1204,6 +1210,8 @@ export default function App() {
             t.source === "drive"
               ? driveConnections.some((c) => c.id === record?.connectionId)
               : !!record?.fileHandle;
+          const driveConnection =
+            t.source === "drive" ? driveConnections.find((c) => c.id === record?.connectionId) : null;
           return (
             <EditTagsModal
               track={t}
@@ -1211,6 +1219,11 @@ export default function App() {
               onClose={() => setEditingTrackId(null)}
               onSave={(fields) => handleSaveTags(t, fields)}
               onDownloadArtwork={handleDownloadArtwork}
+              onResolveDrivePath={
+                driveConnection
+                  ? () => resolveDriveFilePath(driveConnection.accessToken, t.driveId)
+                  : null
+              }
             />
           );
         })()}

@@ -1922,3 +1922,347 @@ button.playlist-manager-name:hover {
     width: 118px;
   }
 }
+
+/* ---------- Car mode ---------- */
+
+.car-mode {
+  position: fixed;
+  inset: 0;
+  z-index: 2000; /* above everything, including modals (1000) */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  overflow-y: auto;
+  background: #000;
+  color: var(--text);
+  padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+    max(32px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  outline: none;
+  /* Sizes scale with the smaller screen dimension so the layout works on
+     phones, tablets and rotated screens. (vh line first = fallback.) */
+  --car-close: clamp(52px, 9vw, 80px);
+  --car-big: min(30vw, 17vh);
+  --car-medium: min(17vw, 9.6vh);
+  --car-big: min(30vw, 17dvh);
+  --car-medium: min(17vw, 9.6dvh);
+}
+
+.car-mode :focus-visible {
+  outline: 4px solid #fff;
+  outline-offset: 4px;
+}
+
+.car-close {
+  position: absolute;
+  top: max(20px, env(safe-area-inset-top));
+  right: max(20px, env(safe-area-inset-right));
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: var(--car-close);
+  height: var(--car-close);
+  padding: 0;
+  border: clamp(3px, 0.5vw, 5px) solid #fff;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  touch-action: manipulation;
+}
+
+.car-close svg {
+  width: 56%;
+  height: 56%;
+}
+
+.car-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding-top: calc(var(--car-close) * 0.9);
+  text-align: center;
+}
+
+.car-header-icon {
+  width: clamp(96px, 30vw, 160px);
+  height: auto;
+}
+
+.car-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: clamp(24px, 6.2vw, 46px);
+  font-weight: 500;
+}
+
+.car-status {
+  margin: 4px 0 0;
+  max-width: 90vw;
+  color: var(--accent);
+  font-size: clamp(16px, 3.6vw, 24px);
+  line-height: 1.3;
+}
+
+.car-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--car-big) * 0.35);
+}
+
+.car-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--car-big) * 0.18);
+}
+
+.car-row-transport {
+  gap: calc(var(--car-big) * 0.14);
+}
+
+.car-row-modes {
+  gap: calc(var(--car-big) * 0.6);
+}
+
+/* Now playing: label, artist, song (song scrolls right-to-left if too long). */
+.car-np {
+  width: 100%;
+  max-width: 900px;
+  padding: 0 12px;
+  text-align: center;
+  font-size: min(6vw, 4.6vh, 44px);
+  font-size: min(6vw, 4.6dvh, 44px);
+  line-height: 1.3;
+}
+
+.car-np p {
+  margin: 0;
+}
+
+.car-np-label {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.car-np-artist {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.car-np .marquee {
+  text-align: center;
+}
+
+.car-np .marquee-track:not(.scrolling) .marquee-item {
+  padding-right: 0; /* keep short titles truly centered */
+}
+
+.car-np .marquee-track.scrolling {
+  animation-duration: 14s; /* slower than the player bar: bigger text */
+}
+
+/* Buttons: big round targets, black icon on white or accent green. */
+.car-btn {
+  --size: var(--car-medium);
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--size);
+  height: var(--size);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: #000;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.08s ease;
+}
+
+.car-btn:active:not(:disabled) {
+  transform: scale(0.93);
+}
+
+.car-btn svg {
+  width: 52%;
+  height: 52%;
+}
+
+.car-btn-big {
+  --size: var(--car-big);
+}
+
+.car-btn-medium {
+  --size: var(--car-medium);
+}
+
+.car-btn-light {
+  background: #fff;
+}
+
+.car-btn-accent {
+  background: var(--accent);
+}
+
+/* Shuffle / repeat "on": switch to the accent color plus a halo, so the
+   state isn't conveyed by color alone. */
+.car-btn-light[aria-pressed="true"] {
+  background: var(--accent);
+  box-shadow: 0 0 0 clamp(4px, 0.9vw, 8px) rgba(182, 255, 60, 0.35);
+}
+
+.car-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* --- Playlist screen --- */
+
+.car-mode-playlists {
+  justify-content: flex-start;
+  align-items: stretch;
+  overflow: hidden;
+  padding-bottom: 0; /* the scroll area below handles the bottom inset */
+}
+
+.car-pl-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: calc(var(--car-close) + 24px);
+  padding: 0 4px;
+}
+
+.car-mode-playlists .car-close {
+  position: static;
+}
+
+.car-pl-title {
+  margin: 0;
+  font-size: clamp(28px, 7vw, 56px);
+  font-weight: 500;
+}
+
+.car-pl-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+
+.car-pl-list {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.car-pl-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 2.4vw, 24px);
+  min-height: clamp(108px, 24vw, 168px);
+  padding: 8px 4px 0;
+}
+
+.car-pl-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: clamp(3px, 0.6vw, 6px);
+  border-radius: 3px;
+  background: #fff;
+}
+
+.car-pl-name {
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: clamp(28px, 7vw, 56px);
+  line-height: 1.15;
+}
+
+.car-btn-pl {
+  --size: clamp(64px, 17vw, 120px);
+}
+
+/* Landscape phones: put every control on one (wrapping) row. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .car-mode:not(.car-mode-playlists) {
+    --car-big: min(26vh, 14vw);
+    --car-medium: calc(var(--car-big) * 0.64);
+    --car-big: min(26dvh, 14vw);
+    --car-medium: calc(var(--car-big) * 0.64);
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-content: center;
+    justify-content: center;
+    gap: 12px 28px;
+    padding-top: calc(var(--car-close) + 28px); /* keep controls clear of the ✕ */
+  }
+
+  .car-mode:not(.car-mode-playlists) .car-header {
+    position: absolute;
+    left: 20px;
+    right: calc(var(--car-close) + 40px);
+    bottom: 10px;
+    padding: 0;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .car-mode:not(.car-mode-playlists) .car-header-icon,
+  .car-mode:not(.car-mode-playlists) .car-title {
+    display: none;
+  }
+
+  .car-bottom {
+    display: contents;
+  }
+
+  /* Now playing goes on its own line under the buttons. */
+  .car-mode:not(.car-mode-playlists) .car-np {
+    order: 10;
+    flex: 0 0 100%;
+    font-size: min(5vw, 8vh, 30px);
+  }
+
+  .car-row-transport,
+  .car-row-modes {
+    gap: calc(var(--car-big) * 0.2);
+  }
+
+  .car-btn-pl {
+    --size: 64px;
+  }
+
+  .car-pl-row {
+    min-height: 96px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .car-btn {
+    transition: none;
+  }
+}
+
+/* Sidebar link that opens car mode */
+.car-mode-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}

@@ -47,6 +47,8 @@ import { trackSearchScore } from "./lib/search.js";
 import { fetchAlbumArtwork } from "./lib/albumArtwork.js";
 import { useDebouncedValue } from "./lib/useDebouncedValue.js";
 import PlaylistManager from "./components/PlaylistManager.jsx";
+import CarMode from "./components/CarMode.jsx";
+import { ALL_TRACKS_ID } from "./lib/playlistOrder.js";
 
 // Fixed ID (not a generated one) so re-adding local files across sessions
 // always lands in the same playlist instead of creating duplicates.
@@ -85,6 +87,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 220);
   const [showAbout, setShowAbout] = useState(false);
+  const [carMode, setCarMode] = useState(false);
   const [addToPlaylistTrackId, setAddToPlaylistTrackId] = useState(null);
   const [showSplash, setShowSplash] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
@@ -1032,6 +1035,59 @@ export default function App() {
     setRepeatMode((m) => (m === "off" ? "all" : m === "all" ? "one" : "off"));
   }
 
+  // --- Car mode ---
+  function openCarMode() {
+    setNotice(""); // don't show a stale library message on the car screen
+    if (typeof window !== "undefined" && window.innerWidth <= 720) setSidebarOpen(false);
+    setCarMode(true);
+  }
+
+  // With nothing loaded yet, Play should start music rather than do nothing.
+  function handleCarTogglePlay() {
+    if (!playingTrack) {
+      if (queue.length) playById(queue[0].id);
+      return;
+    }
+    togglePlay();
+  }
+
+  /**
+   * Plays a playlist from car mode: "Play" starts from the top of the list
+   * (shuffle off), "Shuffle" starts on a random track with shuffle on.
+   * The app's queue follows the active playlist, so this also switches the
+   * library view to that playlist (with search and sorting cleared so the
+   * queue is exactly the playlist's own order).
+   */
+  function handleCarPlayPlaylist(playlistId, shuffleOn) {
+    const targetId = playlistId === ALL_TRACKS_ID ? null : playlistId;
+    let list;
+    if (targetId) {
+      const pl = playlists.find((p) => p.id === targetId);
+      list = (pl?.trackIds || []).map((id) => tracks.find((t) => t.id === id)).filter(Boolean);
+    } else {
+      list = [...tracks].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    }
+    if (!list.length) return;
+
+    setActivePage("library");
+    setActivePlaylistId(targetId);
+    setSearchQuery("");
+    setSortKey(null);
+    setSortDir("asc");
+
+    setShuffle(shuffleOn);
+    shuffleHistoryRef.current = [];
+    let first = list[0];
+    if (shuffleOn) {
+      // Prefer a different song than the one already playing.
+      const pool = list.length > 1 ? list.filter((t) => t.id !== currentTrackId) : list;
+      first = pool[Math.floor(Math.random() * pool.length)];
+    }
+    // If it's already the current song, start it over instead of carrying on mid-song.
+    if (first.id === currentTrackId) handleSeek(0);
+    playById(first.id);
+  }
+
   function handleTrackEnded() {
     if (repeatMode === "one") {
       if (audioRef.current) {
@@ -1077,6 +1133,7 @@ export default function App() {
         onCollapse={() => setSidebarOpen(false)}
         libraryCount={tracks.length}
         onOpenAbout={() => setShowAbout(true)}
+        onOpenCarMode={openCarMode}
       />
 
       <main className="main">
@@ -1245,6 +1302,25 @@ export default function App() {
           );
         })()}
       </div>
+
+      {carMode && (
+        <CarMode
+          track={playingTrack}
+          isPlaying={isPlaying}
+          shuffle={shuffle}
+          repeatMode={repeatMode}
+          playlists={playlists}
+          trackCount={tracks.length}
+          notice={notice}
+          onTogglePlay={handleCarTogglePlay}
+          onNext={playNext}
+          onPrev={playPrev}
+          onToggleShuffle={() => setShuffle((v) => !v)}
+          onCycleRepeat={cycleRepeatMode}
+          onPlayPlaylist={handleCarPlayPlaylist}
+          onClose={() => setCarMode(false)}
+        />
+      )}
     </>
   );
 }

@@ -54,6 +54,21 @@ play/pause button correctly flips back to "play" when this happens,
 rather than continuing to show "pause" for audio that's no longer
 actually playing.
 
+## Car mode
+
+Click **Car mode** in the left-hand menu to open a simplified, full-screen
+control panel meant for use while driving: Play/Pause, Previous, Next,
+Shuffle, Repeat, a playlist button and a voice-search button (placeholder —
+it shows "coming soon" until it's implemented). The ✕ button (or Esc) leaves
+car mode; music keeps playing either way.
+
+The playlist button opens a big-type list of all playlists in the same order
+as the Playlists page (see `src/lib/playlistOrder.js`, shared by both), with
+only **Play** (from the top of the list, shuffle off) and **Shuffle**
+(shuffle on, random start). Choosing one starts playback, switches the
+library view to that playlist (so the queue matches), and returns to the main
+car-mode screen. Empty playlists are dimmed and can't be started.
+
 ## Google Drive setup
 
 Drive access needs an OAuth Client ID — but this is a **one-time setup

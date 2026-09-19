@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { TrashIcon } from "./Icons.jsx";
-
-const LOCAL_FILES_PLAYLIST_ID = "local-files";
+import { getOrderedPlaylists } from "../lib/playlistOrder.js";
 
 function PlaylistArtwork({ playlist }) {
   const [url, setUrl] = useState(null);
@@ -122,42 +121,7 @@ export default function PlaylistManager({
   const [editing, setEditing] = useState(null);
   const [dragId, setDragId] = useState(null);
 
-  const allPlaylists = useMemo(() => {
-    const local = playlists.find((p) => p.id === LOCAL_FILES_PLAYLIST_ID) || {
-      id: LOCAL_FILES_PLAYLIST_ID,
-      name: "Local files",
-      trackIds: [],
-      pinned: false,
-      order: 1,
-      artworkBlob: null,
-    };
-    const custom = playlists.filter((p) => p.id !== LOCAL_FILES_PLAYLIST_ID);
-    return [
-      { id: "all-tracks", name: "All tracks", trackIds: [], pinned: false, special: true },
-      { ...local, special: true },
-      ...custom,
-    ];
-  }, [playlists]);
-
-  const ordered = useMemo(() => {
-    const fixed = allPlaylists.filter((p) => p.special);
-    const movable = allPlaylists.filter((p) => !p.special);
-    const pinned = movable.filter((p) => p.pinned);
-    const unpinned = movable.filter((p) => !p.pinned);
-    const byOrder = (a, b) => (a.order ?? 0) - (b.order ?? 0);
-    if (sortDir) {
-      const byName = (a, b) => {
-        const result = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-        return sortDir === "asc" ? result : -result;
-      };
-      pinned.sort(byName);
-      unpinned.sort(byName);
-    } else {
-      pinned.sort(byOrder);
-      unpinned.sort(byOrder);
-    }
-    return [...fixed, ...pinned, ...unpinned];
-  }, [allPlaylists, sortDir]);
+  const ordered = useMemo(() => getOrderedPlaylists(playlists, { sortDir }), [playlists, sortDir]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

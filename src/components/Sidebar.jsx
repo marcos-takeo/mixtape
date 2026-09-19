@@ -3,7 +3,7 @@ import { isConfigured as isDriveConfigured } from "../lib/googleDrive.js";
 import { PROVIDERS } from "../lib/providers.js";
 import { supportsFileSystemAccess, pickLocalFilesWithHandles } from "../lib/localFiles.js";
 import DriveBrowser from "./DriveBrowser.jsx";
-import { ChevronLeftIcon, InfoIcon } from "./Icons.jsx";
+import { CarIcon, ChevronLeftIcon, InfoIcon } from "./Icons.jsx";
 
 export default function Sidebar({
   onAddLocalFiles,
@@ -25,6 +25,7 @@ export default function Sidebar({
   onCreatePlaylist,
   onCollapse,
   onOpenAbout,
+  onOpenCarMode,
 }) {
   const fileInputRef = useRef(null);
 
@@ -164,6 +165,9 @@ export default function Sidebar({
       </div>
 
       <div className="source-group">
+        <button className="link-btn car-mode-link" onClick={onOpenCarMode}>
+          <CarIcon width={16} height={16} /> Car mode
+        </button>
         <button
           className="link-btn"
           onClick={() =>

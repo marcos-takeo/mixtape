@@ -44,6 +44,7 @@ import {
   deletePlaylist as dbDeletePlaylist,
 } from "./lib/db.js";
 import { trackSearchScore } from "./lib/search.js";
+import { resolveVoiceIntent } from "./lib/voiceCommands.js";
 import { fetchAlbumArtwork } from "./lib/albumArtwork.js";
 import { useDebouncedValue } from "./lib/useDebouncedValue.js";
 import PlaylistManager from "./components/PlaylistManager.jsx";
@@ -123,6 +124,8 @@ export default function App() {
   }, []);
 
   const audioRef = useRef(null);
+  // True while music was paused only so the mic could listen (see handleVoiceStart).
+  const voiceResumeRef = useRef(false);
   const persistedMetaRef = useRef(new Map());
   const orderCounterRef = useRef(0);
   const shuffleHistoryRef = useRef([]);
@@ -1067,7 +1070,7 @@ export default function App() {
     } else {
       list = [...tracks].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     }
-    if (!list.length) return;
+    if (!list.length) return null;
 
     setActivePage("library");
     setActivePlaylistId(targetId);
@@ -1086,6 +1089,122 @@ export default function App() {
     // If it's already the current song, start it over instead of carrying on mid-song.
     if (first.id === currentTrackId) handleSeek(0);
     playById(first.id);
+    return first;
+  }
+
+  // --- Voice search (car mode) ---
+
+  // The mic would pick up the music, so pause while listening. Playback is
+  // resumed afterwards unless the spoken command already changed it.
+  function handleVoiceStart() {
+    if (isPlaying) {
+      audioRef.current?.pause();
+      setIsPlaying(false);
+      voiceResumeRef.current = true;
+    }
+  }
+
+  function handleVoiceEnd() {
+    if (!voiceResumeRef.current) return;
+    voiceResumeRef.current = false;
+    const p = audioRef.current?.play();
+    p?.catch?.(() => {});
+    setIsPlaying(true);
+  }
+
+  // Words the recogniser should favour: the user's own playlists, artists and titles.
+  function getVoicePhrases() {
+    const out = [];
+    const seen = new Set();
+    const add = (text, boost) => {
+      const t = (text || "").trim();
+      if (!t || t.length > 60 || t.includes("…")) return;
+      const key = t.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({ phrase: t, boost });
+    };
+    playlists.forEach((p) => add(p.name, 4));
+    tracks.forEach((t) => add(t.artist, 3));
+    tracks.forEach((t) => add(t.title, 2));
+    return out.slice(0, 300);
+  }
+
+  /** Acts on a recognition result. Returns the message to show the driver. */
+  function handleVoiceResult(alternatives) {
+    const intent = resolveVoiceIntent(alternatives, { tracks, playlists });
+    const describe = (t) => `“${t.title}”${t.artist ? ` — ${t.artist}` : ""}`;
+
+    switch (intent.type) {
+      case "pause":
+        voiceResumeRef.current = false;
+        audioRef.current?.pause();
+        setIsPlaying(false);
+        return "Paused";
+
+      case "resume":
+        voiceResumeRef.current = false;
+        if (!playingTrack) {
+          if (!queue.length) return "Nothing to play yet";
+          playById(queue[0].id);
+        } else {
+          audioRef.current?.play();
+          setIsPlaying(true);
+        }
+        return "Playing";
+
+      case "next":
+        voiceResumeRef.current = false;
+        playNext();
+        return "Next song";
+
+      case "previous":
+        // May only restart the current song; playback resumes when listening ends.
+        playPrev();
+        return "Previous song";
+
+      case "shuffle":
+        setShuffle(intent.value);
+        shuffleHistoryRef.current = [];
+        return intent.value ? "Shuffle on" : "Shuffle off";
+
+      case "repeat":
+        setRepeatMode(intent.value);
+        return intent.value === "off" ? "Repeat off" : intent.value === "one" ? "Repeat: this song" : "Repeat all";
+
+      case "playlist": {
+        const started = handleCarPlayPlaylist(intent.playlist.id, intent.shuffle);
+        if (!started) return `“${intent.playlist.name}” is empty`;
+        voiceResumeRef.current = false;
+        return `${intent.shuffle ? "Shuffling" : "Playing"} “${intent.playlist.name}”`;
+      }
+
+      case "tracks": {
+        const { matches, query, shuffle: shuffleOn } = intent;
+        let first = matches[0];
+        if (shuffleOn) {
+          const pool = matches.length > 1 ? matches.filter((t) => t.id !== currentTrackId) : matches;
+          first = pool[Math.floor(Math.random() * pool.length)];
+          setShuffle(true);
+        }
+        shuffleHistoryRef.current = [];
+        setActivePage("library");
+        setActivePlaylistId(null);
+        setSortKey(null);
+        setSortDir("asc");
+        // Show the results in the library (so Next/Previous walk through them) —
+        // but only when the library's own search would also find this song;
+        // otherwise (e.g. "<title> by <artist>") play it within the whole library.
+        setSearchQuery(trackSearchScore(query, first) > -Infinity ? query : "");
+        if (first.id === currentTrackId) handleSeek(0);
+        playById(first.id);
+        voiceResumeRef.current = false;
+        return `Playing ${describe(first)}`;
+      }
+
+      default:
+        return intent.heard ? `Couldn’t find “${intent.heard}”` : "Didn’t catch that";
+    }
   }
 
   function handleTrackEnded() {
@@ -1318,6 +1437,10 @@ export default function App() {
           onToggleShuffle={() => setShuffle((v) => !v)}
           onCycleRepeat={cycleRepeatMode}
           onPlayPlaylist={handleCarPlayPlaylist}
+          onVoiceStart={handleVoiceStart}
+          onVoiceResult={handleVoiceResult}
+          onVoiceEnd={handleVoiceEnd}
+          getVoicePhrases={getVoicePhrases}
           onClose={() => setCarMode(false)}
         />
       )}

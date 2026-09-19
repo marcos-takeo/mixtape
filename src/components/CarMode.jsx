@@ -14,6 +14,7 @@ import {
 } from "./Icons.jsx";
 import Marquee from "./Marquee.jsx";
 import { ALL_TRACKS_ID, getOrderedPlaylists } from "../lib/playlistOrder.js";
+import { getRecognitionLang, isSpeechSupported, probeOnDevice, startListening } from "../lib/speech.js";
 
 /**
  * Full-screen "car mode": a handful of very large buttons so the driver can
@@ -37,13 +38,26 @@ export default function CarMode({
   onToggleShuffle,
   onCycleRepeat,
   onPlayPlaylist,
-  onVoiceSearch,
+  onVoiceStart,
+  onVoiceResult,
+  onVoiceEnd,
+  getVoicePhrases,
   onClose,
 }) {
   const [view, setView] = useState("main"); // "main" | "playlists"
-  const [hint, setHint] = useState("");
+  const [message, setMessage] = useState(""); // outcome of the last voice command / hint
+  const [listening, setListening] = useState(false);
+  const [heardText, setHeardText] = useState(""); // live transcript while listening
   const rootRef = useRef(null);
-  const hintTimerRef = useRef(null);
+  const messageTimerRef = useRef(null);
+  const listenerRef = useRef(null);
+  const onDeviceRef = useRef(false);
+  const voiceLang = useMemo(getRecognitionLang, []);
+
+  // Latest callbacks, so a listening session started earlier still acts on
+  // fresh app state when the result arrives a few seconds later.
+  const callbacksRef = useRef({});
+  callbacksRef.current = { onVoiceStart, onVoiceResult, onVoiceEnd, getVoicePhrases };
 
   // Same order as the playlist management page (see lib/playlistOrder.js).
   const orderedPlaylists = useMemo(() => getOrderedPlaylists(playlists), [playlists]);
@@ -65,17 +79,70 @@ export default function CarMode({
     rootRef.current?.focus();
   }, [view]);
 
-  useEffect(() => () => clearTimeout(hintTimerRef.current), []);
+  // Find out early whether offline recognition is ready, so that tapping the
+  // mic can start listening synchronously.
+  useEffect(() => {
+    let alive = true;
+    probeOnDevice(voiceLang).then((ok) => {
+      if (alive) onDeviceRef.current = ok;
+    });
+    return () => {
+      alive = false;
+    };
+  }, [voiceLang]);
+
+  // Leaving car mode (or the main screen) stops the mic.
+  useEffect(() => {
+    if (view !== "main") listenerRef.current?.abort();
+  }, [view]);
+  useEffect(
+    () => () => {
+      clearTimeout(messageTimerRef.current);
+      listenerRef.current?.abort();
+    },
+    []
+  );
+
+  function flashMessage(text, ms = 5000) {
+    setMessage(text);
+    clearTimeout(messageTimerRef.current);
+    messageTimerRef.current = setTimeout(() => setMessage(""), ms);
+  }
 
   function handleVoiceSearch() {
-    if (onVoiceSearch) {
-      onVoiceSearch();
+    // Tap again while listening = "I'm done talking".
+    if (listening) {
+      listenerRef.current?.stop();
       return;
     }
-    // Voice search isn't implemented yet — give clear feedback instead of a dead button.
-    setHint("Voice search is coming soon");
-    clearTimeout(hintTimerRef.current);
-    hintTimerRef.current = setTimeout(() => setHint(""), 2500);
+    if (!isSpeechSupported()) {
+      flashMessage("Voice search isn’t supported in this browser");
+      return;
+    }
+
+    clearTimeout(messageTimerRef.current);
+    setMessage("");
+    setHeardText("");
+    setListening(true);
+    callbacksRef.current.onVoiceStart?.();
+
+    listenerRef.current = startListening({
+      lang: voiceLang,
+      onDevice: onDeviceRef.current,
+      phrases: onDeviceRef.current ? callbacksRef.current.getVoicePhrases?.() || [] : [],
+      onInterim: setHeardText,
+      onResult: (alternatives) => {
+        setHeardText("");
+        flashMessage(callbacksRef.current.onVoiceResult?.(alternatives) || "");
+      },
+      onError: (code) => flashMessage(voiceErrorMessage(code)),
+      onEnd: () => {
+        listenerRef.current = null;
+        setListening(false);
+        setHeardText("");
+        callbacksRef.current.onVoiceEnd?.();
+      },
+    });
   }
 
   function choosePlaylist(playlist, shuffleOn) {
@@ -132,7 +199,7 @@ export default function CarMode({
     );
   }
 
-  const status = hint || notice;
+  const status = message || (listening ? (heardText ? `“${heardText}”` : "Listening…") : "") || notice;
 
   return (
     <div ref={rootRef} tabIndex={-1} className="car-mode" role="dialog" aria-modal="true" aria-label="Car mode">
@@ -143,18 +210,21 @@ export default function CarMode({
       <div className="car-header">
         <CarIcon className="car-header-icon" />
         <h1 className="car-title">You're in CAR mode</h1>
-        {status && (
-          <p className="car-status" role="status">
-            {status}
-          </p>
-        )}
+        <p className="car-status" role="status">
+          {status || "\u00a0"}
+        </p>
       </div>
 
       <div className="car-row">
         <button className="car-btn car-btn-light car-btn-big" onClick={() => setView("playlists")} aria-label="Show playlists">
           <ListPlayIcon />
         </button>
-        <button className="car-btn car-btn-accent car-btn-big" onClick={handleVoiceSearch} aria-label="Search by voice">
+        <button
+          className={`car-btn car-btn-accent car-btn-big${listening ? " car-btn-listening" : ""}`}
+          onClick={handleVoiceSearch}
+          aria-label={listening ? "Stop listening" : "Search by voice"}
+          aria-pressed={listening}
+        >
           <MicIcon />
         </button>
       </div>
@@ -209,4 +279,24 @@ export default function CarMode({
       </div>
     </div>
   );
+}
+
+function voiceErrorMessage(code) {
+  switch (code) {
+    case "no-speech":
+      return "Didn’t catch that — tap the mic and try again";
+    case "not-allowed":
+    case "service-not-allowed":
+      return "Microphone is blocked — allow it in your browser settings";
+    case "audio-capture":
+      return "No microphone found";
+    case "network":
+      return "Voice search needs an internet connection";
+    case "language-not-supported":
+      return "Your language isn’t supported for voice search";
+    case "not-supported":
+      return "Voice search isn’t supported in this browser";
+    default:
+      return "Voice search failed — try again";
+  }
 }

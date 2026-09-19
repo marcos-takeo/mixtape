@@ -69,6 +69,38 @@ only **Play** (from the top of the list, shuffle off) and **Shuffle**
 library view to that playlist (so the queue matches), and returns to the main
 car-mode screen. Empty playlists are dimmed and can't be started.
 
+### Voice search
+
+Tap the mic button in car mode and speak. Music pauses while the app listens
+(so it doesn't hear itself) and resumes afterwards unless your command changed
+playback. Tap the mic again to stop listening early.
+
+Things you can say (English):
+
+- **Transport:** "pause", "play", "next", "previous"
+- **Modes:** "shuffle", "shuffle off", "repeat", "repeat song", "repeat off"
+- **Songs and artists:** "play Bohemian Rhapsody", "play Queen", "play Blue
+  Monday by New Order", "shuffle Queen" — matching ignores accents, tolerates
+  small mishearings, and also looks at album names. Results are shown in the
+  library, so Next/Previous walk through them.
+- **Playlists:** "play playlist Road trip", "shuffle playlist Road trip",
+  "play everything" / "shuffle my library"
+
+How it works: `src/lib/speech.js` wraps the browser's Web Speech API
+(Chrome / Chrome for Android, Edge, Samsung Internet; iOS Safari is
+best-effort only), and `src/lib/voiceCommands.js` turns transcripts into
+actions. Notes:
+
+- The page must be served over HTTPS (or localhost) and the user must allow the
+  microphone.
+- By default Chrome sends the audio to Google's speech service, so it needs a
+  connection. If the on-device language pack is already installed
+  (`SpeechRecognition.available()`), recognition runs offline and is biased
+  towards the artists, titles and playlist names in the library.
+- Commands are English-only for now; the phrase tables at the top of
+  `voiceCommands.js` are where to add other languages. The recognition
+  language follows the browser's language.
+
 ## Google Drive setup
 
 Drive access needs an OAuth Client ID — but this is a **one-time setup

@@ -30,17 +30,41 @@ export function getRecognitionLang() {
 
 /**
  * Resolves true when on-device recognition is ready for `lang` without any
- * download. Never rejects. Call it ahead of time (e.g. when car mode opens)
- * so that starting to listen can stay synchronous inside the tap handler.
+ * download. Never rejects, and gives up after a couple of seconds.
  */
 export async function probeOnDevice(lang) {
   const SR = getRecognitionCtor();
   if (!SR || typeof SR.available !== "function" || !("processLocally" in SR.prototype)) return false;
   try {
-    return (await SR.available({ langs: [lang], processLocally: true })) === "available";
+    const status = await Promise.race([
+      SR.available({ langs: [lang], processLocally: true }),
+      new Promise((resolve) => setTimeout(() => resolve("timeout"), 2000)),
+    ]);
+    return status === "available";
   } catch {
     return false;
   }
+}
+
+// The probe is deliberately NOT run when car mode opens: it is an
+// experimental API (in headless Chromium it even kills the tab), so it only
+// runs after the user has actually asked for voice search, in the background.
+// The first listening session uses the standard engine; later ones use
+// on-device recognition when the probe found it ready. Cached for the page's
+// lifetime.
+let onDeviceReady = false;
+let probeStarted = false;
+
+export function isOnDeviceReady() {
+  return onDeviceReady;
+}
+
+export function warmUpOnDevice(lang) {
+  if (probeStarted) return;
+  probeStarted = true;
+  probeOnDevice(lang).then((ok) => {
+    onDeviceReady = ok;
+  });
 }
 
 /**

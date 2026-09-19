@@ -10,11 +10,11 @@ const ROW_HEIGHT = 54;
 // appear at that breakpoint (in DOM order) with their track width, and
 // which of those are already force-hidden at that breakpoint regardless
 // of the user's column settings (matching the existing responsive rules
-// in styles.css). Mandatory columns (art, title, actions) are never
+// in styles.css). Mandatory columns (art, title) are never
 // hidden and always included.
 const BREAKPOINT_LAYOUTS = {
   desktop: {
-    order: ["art", "title", "artist", "album", "source", "file", "duration", "actions"],
+    order: ["art", "title", "artist", "album", "source", "file", "duration", "edit", "playlist", "remove"],
     width: {
       art: "44px",
       title: "1.3fr",
@@ -23,12 +23,14 @@ const BREAKPOINT_LAYOUTS = {
       source: "36px",
       file: "1fr",
       duration: "64px",
-      actions: "168px",
+      edit: "32px",
+      playlist: "32px",
+      remove: "32px",
     },
     forcedHidden: [],
   },
   mobile: {
-    order: ["art", "title", "artist", "album", "source", "duration", "actions"],
+    order: ["art", "title", "artist", "album", "source", "duration", "edit", "playlist", "remove"],
     width: {
       art: "36px",
       title: "1.1fr",
@@ -36,18 +38,22 @@ const BREAKPOINT_LAYOUTS = {
       album: "1fr",
       source: "32px",
       duration: "46px",
-      actions: "64px",
+      edit: "30px",
+      playlist: "30px",
+      remove: "30px",
     },
     forcedHidden: ["file"],
   },
   mobilePortrait: {
-    order: ["art", "title", "artist", "source", "actions"],
+    order: ["art", "title", "artist", "source", "edit", "playlist", "remove"],
     width: {
       art: "36px",
       title: "minmax(0, 1.4fr)",
       artist: "minmax(0, 1fr)",
       source: "28px",
-      actions: "100px",
+      edit: "30px",
+      playlist: "30px",
+      remove: "30px",
     },
     forcedHidden: ["file", "album", "duration"],
   },
@@ -145,7 +151,7 @@ function Row({
       </span>
       <span className="track-filename">{track.fileName || "—"}</span>
       <span className="track-duration">{formatDuration(track.durationSec)}</span>
-      <span className="track-actions">
+      <span className="track-action-cell track-cell-edit">
         <button
           className="row-action-btn edit-btn"
           title={
@@ -155,22 +161,29 @@ function Row({
               ? "Reconnect this Google account to edit tags"
               : "Add or relink the file to edit tags"
           }
+          aria-label="Edit tags"
           onClick={() => onEdit(track)}
           disabled={!canEdit(track)}
         >
           ✎
         </button>
+      </span>
+      <span className="track-action-cell track-cell-playlist">
         <button
           className="row-action-btn"
           title="Add to playlist"
+          aria-label="Add to playlist"
           onClick={() => onOpenAddToPlaylist(track)}
         >
           <PlusIcon width={14} height={14} />
         </button>
+      </span>
+      <span className="track-action-cell track-cell-remove">
         {activePlaylistId ? (
           <button
             className="row-action-btn"
             title="Remove from playlist"
+            aria-label="Remove from playlist"
             onClick={() => onRemoveFromPlaylist(track.id)}
           >
             ×
@@ -179,6 +192,7 @@ function Row({
           <button
             className="row-action-btn"
             title="Remove from library"
+            aria-label="Remove from library"
             onClick={() => {
               if (
                 window.confirm(
@@ -278,7 +292,9 @@ export default function TrackList({
         <span className="col-source" />
         <span className="col-file">File</span>
         <span className="col-right col-duration">Length</span>
-        <span />
+        <span className="col-edit" />
+        <span className="col-playlist" />
+        <span className="col-remove" />
       </div>
 
       <div className="track-list-viewport">

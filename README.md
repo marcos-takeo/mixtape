@@ -54,6 +54,30 @@ play/pause button correctly flips back to "play" when this happens,
 rather than continuing to show "pause" for audio that's no longer
 actually playing.
 
+## Table columns and row actions
+
+The column button above the song table lets you choose what to show, per
+playlist. Besides the data columns (artist, album, source, file name, length)
+it has an **Actions** group: **Edit**, **Add to playlist** and **Remove** each
+live in their own untitled column and can be switched off individually.
+Settings saved by older versions keep working; the actions simply stay
+visible until you hide them.
+
+## More options ("…") and playback speed
+
+The **…** button next to the repeat button in the player bar opens a menu for
+the playing track (it isn't part of car mode):
+
+- **Download to Device** saves the song (including any tag edits) to the
+  device. It's hidden for songs that already are local files.
+- **Playback speed** offers 0.5×, 0.75×, 1×, 1.25×, 1.5× and 2×. Pitch is
+  always preserved. Speed applies to the current track only: it goes back to
+  1× when the track ends or you switch tracks. The **…** button is highlighted
+  while a different speed is active.
+
+In car mode a speed button sits to the right of repeat; each tap steps
+through the presets (1× → 1.25× → 1.5× → 2× → 0.5× → 0.75× → 1×).
+
 ## Car mode
 
 Click **Car mode** in the left-hand menu to open a simplified, full-screen

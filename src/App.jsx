@@ -45,6 +45,9 @@ import {
 } from "./lib/db.js";
 import { trackSearchScore } from "./lib/search.js";
 import { resolveVoiceIntent } from "./lib/voiceCommands.js";
+import { nextCarRate } from "./lib/playbackSpeed.js";
+import { downloadFileName, saveBlobUrl } from "./lib/download.js";
+import TrackOptionsModal from "./components/TrackOptionsModal.jsx";
 import { fetchAlbumArtwork } from "./lib/albumArtwork.js";
 import { useDebouncedValue } from "./lib/useDebouncedValue.js";
 import PlaylistManager from "./components/PlaylistManager.jsx";
@@ -89,6 +92,9 @@ export default function App() {
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 220);
   const [showAbout, setShowAbout] = useState(false);
   const [carMode, setCarMode] = useState(false);
+  const [showTrackOptions, setShowTrackOptions] = useState(false);
+  // Playback speed of the current track only; back to 1 on every track change / end.
+  const [playbackRate, setPlaybackRate] = useState(1);
   const [addToPlaylistTrackId, setAddToPlaylistTrackId] = useState(null);
   const [showSplash, setShowSplash] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
@@ -135,6 +141,23 @@ export default function App() {
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
+
+  // Speed is per track: every new track starts at 1x.
+  useEffect(() => {
+    setPlaybackRate(1);
+  }, [currentTrackId]);
+
+  // Apply the speed to the <audio> element. Also re-applied when its source
+  // changes (e.g. after saving tags), because browsers reset the rate then.
+  // Pitch is always preserved (the browser time-stretches the audio).
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.defaultPlaybackRate = playbackRate;
+    audio.playbackRate = playbackRate;
+    audio.preservesPitch = true;
+    if ("webkitPreservesPitch" in audio) audio.webkitPreservesPitch = true;
+  }, [playbackRate, playingTrack?.objectUrl]);
 
   // Column visibility is remembered per playlist (and separately for the
   // Library/all-tracks view), so reload it whenever the active view changes.
@@ -1207,7 +1230,15 @@ export default function App() {
     }
   }
 
+  function handleDownloadTrack(track) {
+    const url = safeAudioSrc(track?.objectUrl);
+    if (!url) return;
+    saveBlobUrl(url, downloadFileName(track));
+    setShowTrackOptions(false);
+  }
+
   function handleTrackEnded() {
+    setPlaybackRate(1); // per-track speed: finished -> back to 1x
     if (repeatMode === "one") {
       if (audioRef.current) {
         audioRef.current.currentTime = 0;
@@ -1361,6 +1392,8 @@ export default function App() {
         repeatMode={repeatMode}
         onCycleRepeat={cycleRepeatMode}
         onOpenAddToPlaylist={() => playingTrack && setAddToPlaylistTrackId(playingTrack.id)}
+        playbackRate={playbackRate}
+        onOpenMore={() => playingTrack && setShowTrackOptions(true)}
       />
 
       <audio
@@ -1406,6 +1439,21 @@ export default function App() {
 
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
 
+      {showTrackOptions && playingTrack && (
+        <TrackOptionsModal
+          track={playingTrack}
+          playbackRate={playbackRate}
+          // Songs that already are local files have nothing to download.
+          canDownload={playingTrack.source !== "local" && !!safeAudioSrc(playingTrack.objectUrl)}
+          onDownload={() => handleDownloadTrack(playingTrack)}
+          onSelectRate={(rate) => {
+            setPlaybackRate(rate);
+            setShowTrackOptions(false);
+          }}
+          onClose={() => setShowTrackOptions(false)}
+        />
+      )}
+
       {addToPlaylistTrackId &&
         (() => {
           const t = tracks.find((x) => x.id === addToPlaylistTrackId);
@@ -1436,6 +1484,8 @@ export default function App() {
           onPrev={playPrev}
           onToggleShuffle={() => setShuffle((v) => !v)}
           onCycleRepeat={cycleRepeatMode}
+          playbackRate={playbackRate}
+          onCyclePlaybackRate={() => setPlaybackRate((r) => nextCarRate(r))}
           onPlayPlaylist={handleCarPlayPlaylist}
           onVoiceStart={handleVoiceStart}
           onVoiceResult={handleVoiceResult}

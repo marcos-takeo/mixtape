@@ -13,6 +13,7 @@ import {
   RepeatOneIcon,
   VolumeIcon,
   PlusIcon,
+  MoreIcon,
 } from "./Icons.jsx";
 
 export default function PlayerBar({
@@ -31,6 +32,8 @@ export default function PlayerBar({
   repeatMode,
   onCycleRepeat,
   onOpenAddToPlaylist,
+  playbackRate = 1,
+  onOpenMore,
 }) {
   const [expanded, setExpanded] = useState(false);
   const [lyrics, setLyrics] = useState(null); // undefined = loading, null = none found/not fetched
@@ -254,6 +257,15 @@ export default function PlayerBar({
               ) : (
                 <RepeatIcon width={15} height={15} />
               )}
+            </button>
+            <button
+              onClick={onOpenMore}
+              aria-label="More options"
+              className={playbackRate !== 1 ? "shuffle-on" : ""}
+              title={playbackRate !== 1 ? `More options (speed ${playbackRate}×)` : "More options"}
+              disabled={!track}
+            >
+              <MoreIcon width={18} height={18} />
             </button>
           </div>
           <div className="seek-row">

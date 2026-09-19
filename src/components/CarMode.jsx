@@ -13,8 +13,9 @@ import {
   SkipForwardIcon,
 } from "./Icons.jsx";
 import Marquee from "./Marquee.jsx";
+import { formatRate } from "../lib/playbackSpeed.js";
 import { ALL_TRACKS_ID, getOrderedPlaylists } from "../lib/playlistOrder.js";
-import { getRecognitionLang, isSpeechSupported, probeOnDevice, startListening } from "../lib/speech.js";
+import { getRecognitionLang, isOnDeviceReady, isSpeechSupported, startListening, warmUpOnDevice } from "../lib/speech.js";
 
 /**
  * Full-screen "car mode": a handful of very large buttons so the driver can
@@ -37,6 +38,8 @@ export default function CarMode({
   onPrev,
   onToggleShuffle,
   onCycleRepeat,
+  playbackRate = 1,
+  onCyclePlaybackRate,
   onPlayPlaylist,
   onVoiceStart,
   onVoiceResult,
@@ -51,7 +54,6 @@ export default function CarMode({
   const rootRef = useRef(null);
   const messageTimerRef = useRef(null);
   const listenerRef = useRef(null);
-  const onDeviceRef = useRef(false);
   const voiceLang = useMemo(getRecognitionLang, []);
 
   // Latest callbacks, so a listening session started earlier still acts on
@@ -78,18 +80,6 @@ export default function CarMode({
   useEffect(() => {
     rootRef.current?.focus();
   }, [view]);
-
-  // Find out early whether offline recognition is ready, so that tapping the
-  // mic can start listening synchronously.
-  useEffect(() => {
-    let alive = true;
-    probeOnDevice(voiceLang).then((ok) => {
-      if (alive) onDeviceRef.current = ok;
-    });
-    return () => {
-      alive = false;
-    };
-  }, [voiceLang]);
 
   // Leaving car mode (or the main screen) stops the mic.
   useEffect(() => {
@@ -126,10 +116,11 @@ export default function CarMode({
     setListening(true);
     callbacksRef.current.onVoiceStart?.();
 
+    const onDevice = isOnDeviceReady();
     listenerRef.current = startListening({
       lang: voiceLang,
-      onDevice: onDeviceRef.current,
-      phrases: onDeviceRef.current ? callbacksRef.current.getVoicePhrases?.() || [] : [],
+      onDevice,
+      phrases: onDevice ? callbacksRef.current.getVoicePhrases?.() || [] : [],
       onInterim: setHeardText,
       onResult: (alternatives) => {
         setHeardText("");
@@ -143,6 +134,9 @@ export default function CarMode({
         callbacksRef.current.onVoiceEnd?.();
       },
     });
+
+    // Check for on-device recognition in the background, for the next tap.
+    warmUpOnDevice(voiceLang);
   }
 
   function choosePlaylist(playlist, shuffleOn) {
@@ -274,6 +268,14 @@ export default function CarMode({
             aria-pressed={repeatMode !== "off"}
           >
             {repeatMode === "one" ? <RepeatOneIcon /> : <RepeatIcon />}
+          </button>
+          <button
+            className="car-btn car-btn-light car-btn-medium"
+            onClick={onCyclePlaybackRate}
+            aria-label={`Playback speed ${formatRate(playbackRate)} — tap to change`}
+            aria-pressed={playbackRate !== 1}
+          >
+            <span className="car-speed-label">{formatRate(playbackRate)}</span>
           </button>
         </div>
       </div>

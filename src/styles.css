@@ -598,11 +598,26 @@ button {
   display: none;
 }
 
-.track-actions {
+.track-list.hide-col-edit .col-edit,
+.track-list.hide-col-edit .track-cell-edit {
+  display: none;
+}
+
+.track-list.hide-col-playlist .col-playlist,
+.track-list.hide-col-playlist .track-cell-playlist {
+  display: none;
+}
+
+.track-list.hide-col-remove .col-remove,
+.track-list.hide-col-remove .track-cell-remove {
+  display: none;
+}
+
+/* Each row action sits in its own (untitled) column. */
+.track-action-cell {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center;
-  gap: 6px;
 }
 
 .edit-btn {
@@ -1704,6 +1719,10 @@ input[type="range"]::-moz-range-thumb {
   color: var(--text-muted);
 }
 
+.columns-menu-subtitle {
+  margin-top: 10px;
+}
+
 .columns-menu-list {
   list-style: none;
   margin: 0;
@@ -1938,6 +1957,7 @@ button.playlist-manager-name:hover {
   color: var(--text);
   padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
     max(32px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  gap: clamp(8px, 2vh, 24px); /* sections never touch on short screens */
   outline: none;
   /* Sizes scale with the smaller screen dimension so the layout works on
      phones, tablets and rotated screens. (vh line first = fallback.) */
@@ -2038,7 +2058,15 @@ button.playlist-manager-name:hover {
 }
 
 .car-row-modes {
-  gap: calc(var(--car-big) * 0.6);
+  gap: calc(var(--car-big) * 0.3);
+}
+
+.car-speed-label {
+  font-size: calc(var(--size) * 0.29);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
 /* Now playing: label, artist, song (song scrolls right-to-left if too long). */
@@ -2285,4 +2313,86 @@ button.playlist-manager-name:hover {
   align-items: center;
   gap: 6px;
   margin-bottom: 8px;
+}
+
+/* ---------- Track options modal ("…" in the player bar) ---------- */
+
+.track-options-modal {
+  width: 420px;
+}
+
+.track-option-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  background: var(--bg);
+  border: 1px solid var(--divider);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+
+@media (hover: hover) {
+  .track-option-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+}
+
+.track-option {
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--divider);
+  border-radius: 8px;
+}
+
+.track-option-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 10px;
+}
+
+.speed-presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.speed-chip {
+  min-width: 56px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid var(--divider);
+  border-radius: 999px;
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.speed-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000;
+  font-weight: 600;
+}
+
+@media (hover: hover) {
+  .speed-chip:not(.active):hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+}
+
+.track-option-note {
+  margin: 10px 0 0;
+}
+
+.transport-controls button:disabled {
+  opacity: 0.35;
+  cursor: default;
 }

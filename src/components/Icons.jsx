@@ -219,3 +219,23 @@ export function MicIcon(props) {
     </svg>
   );
 }
+
+export function MoreIcon(props) {
+  return (
+    <svg {...base} fill="currentColor" {...props}>
+      <circle cx="5" cy="12" r="1.9" />
+      <circle cx="12" cy="12" r="1.9" />
+      <circle cx="19" cy="12" r="1.9" />
+    </svg>
+  );
+}
+
+export function SpeedIcon(props) {
+  return (
+    <svg {...base} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M4.5 17a8.5 8.5 0 1 1 15 0" />
+      <path d="M12 13l4-4.5" />
+      <circle cx="12" cy="13.5" r="1" fill="currentColor" />
+    </svg>
+  );
+}

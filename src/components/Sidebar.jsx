@@ -166,7 +166,7 @@ export default function Sidebar({
 
       <div className="source-group">
         <button className="link-btn car-mode-link" onClick={onOpenCarMode}>
-          <CarIcon width={16} height={16} /> Car mode
+          <CarIcon width={24} height={12} /> Car mode
         </button>
         <button
           className="link-btn"

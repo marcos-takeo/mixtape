@@ -964,10 +964,31 @@ export default function App() {
     }
 
     setCurrentTrackId(track.id);
-    requestAnimationFrame(() => {
-      audioRef.current?.play();
-    });
     setIsPlaying(true);
+
+    // Don't wait for a paint (requestAnimationFrame): browsers don't run
+    // animation frames for hidden / minimised windows or a phone with the
+    // screen off, so the next song would only start once the user came back.
+    const audio = audioRef.current;
+    const url = safeAudioSrc(track.objectUrl);
+    if (audio && url && audio.src === url) {
+      // This source is already loaded (e.g. restarting the current song).
+      startAudio();
+    }
+    // Otherwise the source is about to change; <audio onCanPlay> starts it
+    // as soon as the new song is ready (media events fire even when hidden).
+  }
+
+  // Starts the <audio> element. If the browser refuses (autoplay policy) the
+  // UI is switched back to "paused" instead of pretending to play.
+  // (An AbortError just means another track was picked meanwhile — ignore it.)
+  function startAudio() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const result = audio.play();
+    result?.catch?.((err) => {
+      if (err?.name === "NotAllowedError") setIsPlaying(false);
+    });
   }
 
   function playIndexInQueue(index) {
@@ -1406,6 +1427,11 @@ export default function App() {
               t.id === currentTrackId && !t.durationSec ? { ...t, durationSec: e.target.duration } : t
             )
           );
+        }}
+        // The app wants sound but the element isn't playing yet: this is the
+        // new song becoming ready after a track change (see playById).
+        onCanPlay={(e) => {
+          if (isPlaying && e.currentTarget.paused) startAudio();
         }}
         onEnded={handleTrackEnded}
       />

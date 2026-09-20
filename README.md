@@ -54,6 +54,20 @@ play/pause button correctly flips back to "play" when this happens,
 rather than continuing to show "pause" for audio that's no longer
 actually playing.
 
+## Search
+
+Search looks at title, artist and album, and ignores punctuation, accents and
+case, on both sides of the comparison (`normalizeForSearch` in
+`src/lib/search.js`, also used by voice search):
+
+- Apostrophes are dropped: "dont" finds "Don't Speak" (straight or curly), and
+  "don't" finds "Dont Speak".
+- "&" and "and" are the same word.
+- Accents are ignored ("beyonce" finds "Beyoncé"); periods are dropped
+  ("rem" finds "R.E.M."); other punctuation counts as a space ("jay z" finds
+  "Jay-Z", "ac dc" finds "AC/DC").
+- Small typos are still tolerated for queries of 4+ characters.
+
 ## Table columns and row actions
 
 The column button above the song table lets you choose what to show, per

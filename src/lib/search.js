@@ -23,13 +23,72 @@ function levenshtein(a, b) {
   return prev[n];
 }
 
+// --- Normalisation -----------------------------------------------------
+// Both the query and the song fields go through the same normalisation, so
+// punctuation, accents and case never get in the way:
+//   "Don't Speak" / "Don’t Speak" / "dont speak"   -> "dont speak"
+//   "Simon & Garfunkel" / "simon and garfunkel"    -> "simon and garfunkel"
+//   "Beyoncé"                                      -> "beyonce"
+//   "Mr. Brightside", "R.E.M."                     -> "mr brightside", "rem"
+//   "Jay-Z", "AC/DC"                               -> "jay z", "ac dc"
+
+// ' ‘ ’ ‚ ‛ ʻ ʼ ′ ` ´  — all dropped, so "don't" and "dont" are the same.
+const APOSTROPHES = /['\u2018\u2019\u201A\u201B\u02BB\u02BC\u2032`\u00B4]/g;
+
+// Letters that don't decompose into base letter + accent.
+const SPECIAL_LETTERS = { ø: "o", æ: "ae", œ: "oe", ß: "ss", ł: "l", đ: "d", ð: "d", þ: "th", ı: "i" };
+
+export function normalizeForSearch(text) {
+  if (!text) return "";
+  return String(text)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "") // accents (combining marks of other scripts are kept)
+    .replace(/[øæœßłđðþı]/g, (ch) => SPECIAL_LETTERS[ch])
+    .replace(APOSTROPHES, "")
+    .replace(/\./g, "") // "R.E.M." -> "rem", "Mr." -> "mr"
+    .replace(/&/g, " and ")
+    .replace(/[^\p{L}\p{N}\p{M}]+/gu, " ") // any other punctuation/whitespace -> one space
+    .trim();
+}
+
+// The three fields of a track, normalised once and remembered — searching
+// runs on every keystroke, so this keeps it fast on big libraries. The cache
+// is keyed on the track object and re-checked against the raw strings.
+const fieldCache = new WeakMap();
+
+export function getSearchFields(track) {
+  const title = track.title || "";
+  const artist = track.artist || "";
+  const album = track.album || "";
+  const hit = fieldCache.get(track);
+  if (hit && hit.title === title && hit.artist === artist && hit.album === album) return hit.fields;
+  const fields = {
+    title: normalizeForSearch(title),
+    artist: normalizeForSearch(artist),
+    album: normalizeForSearch(album),
+  };
+  fieldCache.set(track, { title, artist, album, fields });
+  return fields;
+}
+
+// The same query is scored against every track; normalise it only once.
+let lastQuery = null;
+let lastNormalized = "";
+function normalizeQuery(query) {
+  if (query !== lastQuery) {
+    lastQuery = query;
+    lastNormalized = normalizeForSearch(query);
+  }
+  return lastNormalized;
+}
+
 /**
- * Scores how well `text` matches `query`. Higher is better.
+ * Scores how well `text` matches `query`, both ALREADY normalised
+ * (see normalizeForSearch). Higher is better.
  * Returns -Infinity when the match is too weak to count at all.
  */
-export function fuzzyScore(query, text) {
-  const q = (query || "").trim().toLowerCase();
-  const t = (text || "").toLowerCase();
+export function fuzzyScoreNormalized(q, t) {
   if (!q) return 0;
   if (!t) return -Infinity;
 
@@ -67,11 +126,18 @@ export function fuzzyScore(query, text) {
   return similarity * 500; // below any substring match tier
 }
 
-/** Best score across title + artist, or -Infinity if neither is a good match. */
+/** Scores raw strings: normalises both, then compares. */
+export function fuzzyScore(query, text) {
+  return fuzzyScoreNormalized(normalizeForSearch(query), normalizeForSearch(text));
+}
+
+/** Best score across title + artist + album, or -Infinity if none is a good match. */
 export function trackSearchScore(query, track) {
+  const q = normalizeQuery(query);
+  const f = getSearchFields(track);
   return Math.max(
-    fuzzyScore(query, track.title),
-    fuzzyScore(query, track.artist),
-    fuzzyScore(query, track.album)
+    fuzzyScoreNormalized(q, f.title),
+    fuzzyScoreNormalized(q, f.artist),
+    fuzzyScoreNormalized(q, f.album)
   );
 }

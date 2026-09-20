@@ -4,19 +4,14 @@
 // English phrases only for now. To add a language, extend SIMPLE_COMMANDS /
 // the verb and filler lists below.
 
-import { fuzzyScore, trackSearchScore } from "./search.js";
+import { fuzzyScore, fuzzyScoreNormalized, getSearchFields, normalizeForSearch } from "./search.js";
 import { ALL_TRACKS_ID, getOrderedPlaylists } from "./playlistOrder.js";
 
-/** Lowercase, strip accents and punctuation ("Café del Mar!" -> "cafe del mar"). */
-export function normalizeSpeech(text) {
-  return (text || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/['’`]/g, "")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
-}
+/**
+ * Lowercase, strip accents and punctuation ("Café del Mar!" -> "cafe del mar").
+ * Same normalisation as the library search, so typed and spoken searches agree.
+ */
+export const normalizeSpeech = normalizeForSearch;
 
 // Whole-utterance commands.
 const SIMPLE_COMMANDS = [
@@ -114,16 +109,20 @@ function findPlaylist(name, ordered, { loose }) {
   return bestScore > -Infinity ? best : null;
 }
 
-// `x` holds accent-free, punctuation-free copies of the track's fields.
+// `query` and the fields of `x` are already normalised (normalizeForSearch).
 function scoreTrack(query, x) {
   // "<title> by <artist>"
   const by = query.indexOf(" by ");
   if (by > 0) {
-    const st = fuzzyScore(query.slice(0, by), x.title);
-    const sa = fuzzyScore(query.slice(by + 4), x.artist);
+    const st = fuzzyScoreNormalized(query.slice(0, by), x.title);
+    const sa = fuzzyScoreNormalized(query.slice(by + 4), x.artist);
     if (st > -Infinity && sa > -Infinity) return 2000 + (st + sa) / 2;
   }
-  const base = trackSearchScore(query, x);
+  const base = Math.max(
+    fuzzyScoreNormalized(query, x.title),
+    fuzzyScoreNormalized(query, x.artist),
+    fuzzyScoreNormalized(query, x.album)
+  );
   if (base > -Infinity) return base;
 
   // Words spread over title + artist + album ("queen radio gaga").
@@ -172,12 +171,7 @@ export function resolveVoiceIntent(alternatives, { tracks, playlists }) {
 
     if (query.length >= 2) {
       if (!index) {
-        index = tracks.map((track) => ({
-          track,
-          title: normalizeSpeech(track.title),
-          artist: normalizeSpeech(track.artist),
-          album: normalizeSpeech(track.album),
-        }));
+        index = tracks.map((track) => ({ track, ...getSearchFields(track) }));
       }
       const scored = [];
       for (const x of index) {

@@ -46,6 +46,7 @@ import {
 import { trackSearchScore } from "./lib/search.js";
 import { resolveVoiceIntent } from "./lib/voiceCommands.js";
 import { nextCarRate } from "./lib/playbackSpeed.js";
+import { seekTarget } from "./lib/seek.js";
 import { downloadFileName, saveBlobUrl } from "./lib/download.js";
 import TrackOptionsModal from "./components/TrackOptionsModal.jsx";
 import { fetchAlbumArtwork } from "./lib/albumArtwork.js";
@@ -1062,6 +1063,15 @@ export default function App() {
     setCurrentTime(time);
   }
 
+  // Skip back/forward by a number of seconds (negative = back). Reads the
+  // position from the audio element itself so rapid taps stack correctly.
+  function handleSeekBy(delta) {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const duration = Number.isFinite(audio.duration) ? audio.duration : playingTrack?.durationSec;
+    handleSeek(seekTarget(audio.currentTime, delta, duration));
+  }
+
   async function handleDownloadArtwork({ artist, title, album }) {
     // Artwork lookup is intentionally read-only. The user must explicitly
     // click Save tags before the artwork is embedded into the audio file.
@@ -1476,6 +1486,7 @@ export default function App() {
             setPlaybackRate(rate);
             setShowTrackOptions(false);
           }}
+          onSeekBy={handleSeekBy}
           onClose={() => setShowTrackOptions(false)}
         />
       )}

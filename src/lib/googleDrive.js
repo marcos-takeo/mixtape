@@ -3,7 +3,12 @@
 // baked in at build time via Vite's env handling. End users never see or
 // need to know about it; they just see a normal "Connect Google Drive"
 // button and Google's real consent screen.
-const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
+// Coerced to a clean string: a stray space, newline or pair of quotes pasted
+// into the env var must never reach Google's script as-is.
+const CLIENT_ID = String(import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "")
+  .trim()
+  .replace(/^["']+|["']+$/g, "")
+  .trim();
 
 // Full read/write scope (not drive.readonly) — editing ID3 tags on a Drive
 // file means writing new bytes back to it, which readonly can't do.
@@ -21,7 +26,8 @@ export function isConfigured() {
 /** Emails of accounts previously connected, so we can try reconnecting them silently on load. */
 export function getRememberedAccounts() {
   try {
-    return JSON.parse(localStorage.getItem(REMEMBERED_KEY) || "[]");
+    const list = JSON.parse(localStorage.getItem(REMEMBERED_KEY) || "[]");
+    return Array.isArray(list) ? list.filter((e) => typeof e === "string" && e) : [];
   } catch {
     return [];
   }
@@ -129,18 +135,42 @@ export function requestGoogleAccessToken({ silent = false, hint } = {}) {
       return;
     }
 
-    const client = getTokenClient();
     pendingResolve = resolve;
     pendingReject = reject;
     pendingSilent = silent;
 
     const overrideConfig = { prompt: silent ? "" : "select_account" };
     // Google's requestAccessToken() override object uses "login_hint" here —
-    // "hint" is only valid in the initial initTokenClient() config, not in
-    // this per-call override. Passing the wrong key name is what was
-    // actually causing the "x.trim is not a function" crash.
+    // "hint" is only valid in the initial initTokenClient() config.
     if (hint && typeof hint === "string") overrideConfig.login_hint = hint;
-    client.requestAccessToken(overrideConfig);
+
+    try {
+      getTokenClient().requestAccessToken(overrideConfig);
+    } catch (err) {
+      // Google's script threw synchronously (e.g. "x.trim is not a function"
+      // from deep inside its own code). Log the full error so the real origin
+      // is visible in the console, then retry ONCE on a brand-new client with
+      // no override options at all — the plainest call Google supports.
+      console.error("Google sign-in threw; retrying with a fresh client:", err);
+      tokenClient = null;
+      try {
+        getTokenClient().requestAccessToken();
+      } catch (err2) {
+        console.error("Google sign-in retry also failed:", err2);
+        tokenClient = null;
+        pendingResolve = null;
+        pendingReject = null;
+        if (silent) {
+          resolve(null); // silent reconnects failing is expected, never an error
+          return;
+        }
+        reject(
+          new Error(
+            `Google sign-in couldn't start (${err2?.message || err2}). Reload the page and try again; if it keeps happening, check the browser console.`
+          )
+        );
+      }
+    }
   });
 }
 

@@ -2319,6 +2319,49 @@ button.playlist-manager-name:hover {
 
 .track-options-modal {
   width: 420px;
+  /* Never taller than the screen: the body scrolls, the close button stays put. */
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  padding: 0;
+  overflow: hidden;
+}
+
+.track-options-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 28px;
+}
+
+.track-options-body h2 {
+  padding-right: 40px; /* room for the close button */
+}
+
+/* Short screens (phones in landscape): tighter spacing so more fits before
+   the body needs to scroll. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .editor-backdrop:has(.track-options-modal) {
+    padding: 8px max(8px, env(safe-area-inset-right)) 8px max(8px, env(safe-area-inset-left));
+  }
+
+  .track-options-modal {
+    width: min(640px, 100%);
+  }
+
+  .track-options-body {
+    padding: 14px 16px;
+  }
+
+  .track-options-body h2 {
+    margin-bottom: 6px;
+  }
+
+  .track-options-body .modal-note {
+    margin: 0 0 10px;
+  }
 }
 
 .track-option-btn {
@@ -2390,6 +2433,20 @@ button.playlist-manager-name:hover {
 
 .track-option-note {
   margin: 10px 0 0;
+}
+
+.track-option + .track-option {
+  margin-top: 8px;
+}
+
+.seek-presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.seek-presets + .seek-presets {
+  margin-top: 8px;
 }
 
 .transport-controls button:disabled {

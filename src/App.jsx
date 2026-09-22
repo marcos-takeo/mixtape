@@ -142,6 +142,7 @@ export default function App() {
   const persistedMetaRef = useRef(new Map());
   const orderCounterRef = useRef(0);
   const shuffleHistoryRef = useRef([]);
+  const trackListRef = useRef(null);
 
   const playingTrack = tracks.find((t) => t.id === currentTrackId) || null;
 
@@ -153,6 +154,23 @@ export default function App() {
   useEffect(() => {
     setPlaybackRate(1);
   }, [currentTrackId]);
+
+  // When a new track starts playing, scroll it into view in the (virtualized)
+  // track list, so the user can see what's playing without hunting for it.
+  // No-ops if the track list isn't mounted (e.g. the Playlists page is open)
+  // or the track isn't in the currently displayed queue.
+  useEffect(() => {
+    if (!currentTrackId) return;
+    trackListRef.current?.scrollToTrack(currentTrackId);
+  }, [currentTrackId]);
+
+  // Also catch up if the user switches back to the library page (e.g. from
+  // Playlists) while a track is already playing — the list wasn't mounted
+  // yet when the scroll above ran.
+  useEffect(() => {
+    if (activePage !== "library" || !currentTrackId) return;
+    trackListRef.current?.scrollToTrack(currentTrackId, { behavior: "instant" });
+  }, [activePage]);
 
   // Apply the speed to the <audio> element. Also re-applied when its source
   // changes (e.g. after saving tags), because browsers reset the rate then.
@@ -1393,6 +1411,7 @@ export default function App() {
             />
           ) : (
           <TrackList
+            ref={trackListRef}
             tracks={queue}
             currentId={playingTrack?.id}
             onPlay={playIndexInQueue}

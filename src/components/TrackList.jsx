@@ -1,5 +1,5 @@
-import React, { useMemo, useRef } from "react";
-import { List } from "react-window";
+import React, { forwardRef, useImperativeHandle, useMemo, useRef } from "react";
+import { List, useListRef } from "react-window";
 import { formatDuration } from "../lib/id3.js";
 import { LocalFileIcon, CloudIcon, PlusIcon, TrashIcon } from "./Icons.jsx";
 import { OPTIONAL_COLUMNS } from "../lib/columnPrefs.js";
@@ -211,7 +211,8 @@ function Row({
   );
 }
 
-export default function TrackList({
+const TrackList = forwardRef(function TrackList(
+  {
   tracks,
   currentId,
   onPlay,
@@ -227,8 +228,25 @@ export default function TrackList({
   onOpenAddToPlaylist,
   onRemoveFromPlaylist,
   visibleColumns,
-}) {
+  },
+  ref
+) {
   const dragIndexRef = useRef(null);
+  const listRef = useListRef(null);
+
+  // Lets the parent ask the virtualized list to scroll a row into view (used
+  // to bring the now-playing track into view when playback starts).
+  useImperativeHandle(
+    ref,
+    () => ({
+      scrollToTrack(trackId, options) {
+        const index = tracks.findIndex((t) => t.id === trackId);
+        if (index === -1) return;
+        listRef.current?.scrollToRow({ index, align: "center", behavior: "smooth", ...options });
+      },
+    }),
+    [tracks, listRef]
+  );
   const columns = visibleColumns || OPTIONAL_COLUMNS;
   const { style: columnStyle, hideClassName } = useMemo(() => buildColumnLayout(columns), [columns]);
 
@@ -299,6 +317,7 @@ export default function TrackList({
 
       <div className="track-list-viewport">
         <List
+          listRef={listRef}
           rowComponent={Row}
           rowCount={tracks.length}
           rowHeight={ROW_HEIGHT}
@@ -309,4 +328,6 @@ export default function TrackList({
       </div>
     </div>
   );
-}
+});
+
+export default TrackList;

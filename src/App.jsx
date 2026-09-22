@@ -46,6 +46,7 @@ import {
 import { trackSearchScore } from "./lib/search.js";
 import { resolveVoiceIntent } from "./lib/voiceCommands.js";
 import { nextCarRate } from "./lib/playbackSpeed.js";
+import { seekTarget } from "./lib/seek.js";
 import { downloadFileName, saveBlobUrl } from "./lib/download.js";
 import TrackOptionsModal from "./components/TrackOptionsModal.jsx";
 import { fetchAlbumArtwork } from "./lib/albumArtwork.js";
@@ -58,14 +59,20 @@ import { ALL_TRACKS_ID } from "./lib/playlistOrder.js";
 // always lands in the same playlist instead of creating duplicates.
 const LOCAL_FILES_PLAYLIST_ID = "local-files";
 
-// The <audio> element's `src` is the one place track data reaches a real
-// DOM sink, so we only ever hand it a same-origin, browser-generated
-// "blob:" URL — the kind URL.createObjectURL() returns. Every track's
-// objectUrl is created that way (never from a filename, tag, or other
-// string a file could influence), but this guard makes that explicit
-// and refuses anything else, rather than trusting the value implicitly.
+// The <audio> element's `src` (and the download link's `href`) is the place
+// track data reaches a real DOM sink, so it only ever gets a browser-generated
+// "blob:" URL — the kind URL.createObjectURL() returns. The value is parsed
+// and rebuilt from the parsed URL rather than passed through as-is, and
+// anything that isn't a valid blob: URL (javascript:, https:, garbage) is
+// refused. This is also what lets GitHub code scanning see the value is safe.
 function safeAudioSrc(url) {
-  return typeof url === "string" && url.startsWith("blob:") ? url : undefined;
+  if (typeof url !== "string") return undefined;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "blob:" ? parsed.href : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export default function App() {
@@ -1062,6 +1069,15 @@ export default function App() {
     setCurrentTime(time);
   }
 
+  // Skip back/forward by a number of seconds (negative = back). Reads the
+  // position from the audio element itself so rapid taps stack correctly.
+  function handleSeekBy(delta) {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const duration = Number.isFinite(audio.duration) ? audio.duration : playingTrack?.durationSec;
+    handleSeek(seekTarget(audio.currentTime, delta, duration));
+  }
+
   async function handleDownloadArtwork({ artist, title, album }) {
     // Artwork lookup is intentionally read-only. The user must explicitly
     // click Save tags before the artwork is embedded into the audio file.
@@ -1476,6 +1492,7 @@ export default function App() {
             setPlaybackRate(rate);
             setShowTrackOptions(false);
           }}
+          onSeekBy={handleSeekBy}
           onClose={() => setShowTrackOptions(false)}
         />
       )}

@@ -239,3 +239,12 @@ export function SpeedIcon(props) {
     </svg>
   );
 }
+
+export function SkipIcon(props) {
+  return (
+    <svg {...base} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M13 6l-6 6 6 6" />
+      <path d="M19 6l-6 6 6 6" />
+    </svg>
+  );
+}

@@ -84,6 +84,10 @@ the playing track (it isn't part of car mode):
 
 - **Download to Device** saves the song (including any tag edits) to the
   device. It's hidden for songs that already are local files.
+- **Skip in track** jumps back (−60s, −30s, −10s) or forward (+10s, +30s,
+  +60s) in the playing song. The menu stays open so you can tap repeatedly.
+  Skipping back past the start goes to 0:00; skipping forward past the end
+  moves on to the next song.
 - **Playback speed** offers 0.5×, 0.75×, 1×, 1.25×, 1.5× and 2×. Pitch is
   always preserved. Speed applies to the current track only: it goes back to
   1× when the track ends or you switch tracks. The **…** button is highlighted

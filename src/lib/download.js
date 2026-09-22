@@ -7,7 +7,7 @@ export function downloadFileName(track) {
   return /\.[a-z0-9]{2,5}$/i.test(cleaned) ? cleaned : `${cleaned}.mp3`;
 }
 
-/** Triggers a browser download of a same-origin blob: URL. */
+/** Triggers a browser download of a same-origin blob: URL (callers pass it through safeAudioSrc first). */
 export function saveBlobUrl(url, fileName) {
   const a = document.createElement("a");
   a.href = url;

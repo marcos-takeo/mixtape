@@ -334,6 +334,28 @@ button {
   white-space: nowrap;
 }
 
+.cloud-account-needs-reconnect {
+  border-color: #e8b34a;
+  border-style: dashed;
+}
+
+.cloud-account-needs-reconnect .cloud-account-label {
+  color: var(--text-muted);
+}
+
+.cloud-account-status {
+  font-size: 11px;
+  color: #e8b34a;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.cloud-account-needs-reconnect .source-btn {
+  margin-top: 6px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+}
+
 .error-text {
   color: var(--danger);
   font-size: 11.5px;

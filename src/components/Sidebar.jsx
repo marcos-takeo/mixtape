@@ -10,6 +10,8 @@ export default function Sidebar({
   hasUnlinkedLocalTracks,
   onRelinkFiles,
   driveConnections,
+  disconnectedAccounts,
+  onReconnectDrive,
   driveError,
   onConnectDrive,
   onDisconnectDrive,
@@ -142,6 +144,20 @@ export default function Sidebar({
               onAddTrack={(f) => onAddDriveTrack(f, conn)}
               onAddAllInFolder={(files) => onAddDriveFolder(files, conn)}
             />
+          </div>
+        ))}
+
+        {disconnectedAccounts?.map((email) => (
+          <div key={email} className="cloud-account cloud-account-needs-reconnect">
+            <div className="cloud-account-row">
+              <span className="cloud-account-label" title={email}>
+                {email}
+              </span>
+              <span className="cloud-account-status">Not connected</span>
+            </div>
+            <button className="source-btn" onClick={() => onReconnectDrive(email)}>
+              Reconnect
+            </button>
           </div>
         ))}
 

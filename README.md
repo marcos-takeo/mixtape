@@ -117,16 +117,23 @@ Tap the mic button in car mode and speak. Music pauses while the app listens
 (so it doesn't hear itself) and resumes afterwards unless your command changed
 playback. Tap the mic again to stop listening early.
 
-Things you can say (English):
+Things you can say — English and Portuguese are both understood, regardless
+of which language the recognition engine transcribes in:
 
-- **Transport:** "pause", "play", "next", "previous"
-- **Modes:** "shuffle", "shuffle off", "repeat", "repeat song", "repeat off"
-- **Songs and artists:** "play Bohemian Rhapsody", "play Queen", "play Blue
-  Monday by New Order", "shuffle Queen" — matching ignores accents, tolerates
-  small mishearings, and also looks at album names. Results are shown in the
-  library, so Next/Previous walk through them.
-- **Playlists:** "play playlist Road trip", "shuffle playlist Road trip",
-  "play everything" / "shuffle my library"
+- **Transport:** "pause" / "pausar", "play" / "tocar", "next" / "próxima",
+  "previous" / "anterior"
+- **Modes:** "shuffle" / "aleatório", "shuffle off" / "desativar aleatório",
+  "repeat" / "repetir", "repeat song" / "repetir esta música", "repeat off" /
+  "desativar repetição"
+- **Songs and artists:** "play Bohemian Rhapsody" / "tocar Bohemian
+  Rhapsody", "play Queen" / "tocar Queen", "play Blue Monday by New Order" /
+  "tocar Blue Monday do New Order", "shuffle Queen" / "aleatório Queen" —
+  matching ignores accents, tolerates small mishearings, and also looks at
+  album names. Results are shown in the library, so Next/Previous walk
+  through them.
+- **Playlists:** "play playlist Road trip" / "tocar a playlist Road trip",
+  "play everything" / "tocar tudo", "shuffle my library" / "aleatório na
+  minha biblioteca"
 
 How it works: `src/lib/speech.js` wraps the browser's Web Speech API
 (Chrome / Chrome for Android, Edge, Samsung Internet; iOS Safari is
@@ -139,9 +146,11 @@ actions. Notes:
   connection. If the on-device language pack is already installed
   (`SpeechRecognition.available()`), recognition runs offline and is biased
   towards the artists, titles and playlist names in the library.
-- Commands are English-only for now; the phrase tables at the top of
-  `voiceCommands.js` are where to add other languages. The recognition
-  language follows the browser's language.
+- Commands are matched in English and Portuguese at once (the parser checks
+  both phrase sets on whatever text the engine returns); the phrase tables at
+  the top of `voiceCommands.js` are where to add further languages. The
+  recognition language itself follows the browser's language, and Portuguese
+  accents are stripped the same way typed search ignores them.
 
 ## Google Drive setup
 

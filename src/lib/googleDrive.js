@@ -23,6 +23,30 @@ export function isConfigured() {
   return !!CLIENT_ID;
 }
 
+/**
+ * Resolves once Google's Identity Services script (loaded as <script async
+ * defer> in index.html, so there is no guarantee it's ready the moment the
+ * app mounts) has finished loading, or after `timeoutMs` — whichever comes
+ * first. Resolves to a boolean rather than rejecting, so callers can decide
+ * what "not ready in time" means for them instead of throwing on page load.
+ */
+export function waitForGoogleIdentity(timeoutMs = 5000) {
+  if (window.google?.accounts?.oauth2) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const check = () => {
+      if (window.google?.accounts?.oauth2) {
+        resolve(true);
+      } else if (Date.now() - started >= timeoutMs) {
+        resolve(false);
+      } else {
+        setTimeout(check, 100);
+      }
+    };
+    check();
+  });
+}
+
 /** Emails of accounts previously connected, so we can try reconnecting them silently on load. */
 export function getRememberedAccounts() {
   try {
@@ -73,6 +97,7 @@ let tokenClient = null;
 let pendingResolve = null;
 let pendingReject = null;
 let pendingSilent = false;
+let pendingHint = null; // which account a pending silent request is for, for logging only
 
 function getTokenClient() {
   if (tokenClient) return tokenClient;
@@ -83,10 +108,21 @@ function getTokenClient() {
       const resolve = pendingResolve;
       const reject = pendingReject;
       const silent = pendingSilent;
+      const hint = pendingHint;
       pendingResolve = null;
       pendingReject = null;
+      pendingHint = null;
       if (response.error) {
         if (silent) {
+          // Google actively refused to reissue a token without a prompt —
+          // this is the expected "can't do it silently" outcome, not a bug,
+          // but the reason (response.error, e.g. "consent_required" or
+          // "interaction_required") is worth logging: it's the difference
+          // between "try again later" and "this account needs re-consent".
+          console.warn(
+            `Google silent reconnect declined for ${hint || "(unknown account)"}: ${response.error}` +
+              (response.error_description ? ` — ${response.error_description}` : "")
+          );
           resolve?.(null);
           return;
         }
@@ -99,9 +135,15 @@ function getTokenClient() {
       const resolve = pendingResolve;
       const reject = pendingReject;
       const silent = pendingSilent;
+      const hint = pendingHint;
       pendingResolve = null;
       pendingReject = null;
+      pendingHint = null;
       if (silent) {
+        console.warn(
+          `Google silent reconnect failed for ${hint || "(unknown account)"}:`,
+          err?.message || err || "unknown error"
+        );
         resolve?.(null);
         return;
       }
@@ -138,6 +180,7 @@ export function requestGoogleAccessToken({ silent = false, hint } = {}) {
     pendingResolve = resolve;
     pendingReject = reject;
     pendingSilent = silent;
+    pendingHint = hint || null;
 
     const overrideConfig = { prompt: silent ? "" : "select_account" };
     // Google's requestAccessToken() override object uses "login_hint" here —
@@ -154,7 +197,7 @@ export function requestGoogleAccessToken({ silent = false, hint } = {}) {
       console.error("Google sign-in threw; retrying with a fresh client:", err);
       tokenClient = null;
       try {
-        getTokenClient().requestAccessToken();
+        getTokenClient().requestAccessToken(overrideConfig);
       } catch (err2) {
         console.error("Google sign-in retry also failed:", err2);
         tokenClient = null;

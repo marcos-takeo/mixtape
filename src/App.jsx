@@ -21,6 +21,7 @@ import {
   forgetAccount,
   isSyncDue,
   markSynced,
+  waitForGoogleIdentity,
   clearFolderNameCache,
   resolveDriveFilePath,
 } from "./lib/googleDrive.js";
@@ -84,6 +85,12 @@ export default function App() {
   const [shuffle, setShuffle] = useState(false);
   const [repeatMode, setRepeatMode] = useState("off"); // "off" | "all" | "one"
   const [driveConnections, setDriveConnections] = useState([]); // [{ id, provider, label, accessToken }]
+  // Emails the user has connected before (persisted in localStorage) — used
+  // to show accounts that failed to silently reconnect on load (e.g. a
+  // browser blocked the popup Google needed) instead of them just quietly
+  // vanishing with no explanation. Kept in sync with rememberAccount /
+  // forgetAccount below, not with every driveConnections change.
+  const [rememberedAccounts, setRememberedAccounts] = useState(() => getRememberedAccounts());
   const [driveError, setDriveError] = useState("");
   const [notice, setNotice] = useState("");
   const [pendingRelinkTrackId, setPendingRelinkTrackId] = useState(null);
@@ -243,15 +250,31 @@ export default function App() {
       // across calls, so firing several at once causes all but one to
       // silently fail rather than each resolving independently.
       const remembered = getRememberedAccounts();
+      if (remembered.length > 0) {
+        // The Google sign-in script tag is `async defer`, so it may not have
+        // finished loading yet when this effect runs — without waiting for
+        // it, the first remembered account can fail outright. Give it a few
+        // seconds; if it still isn't ready, fall through and let each
+        // attempt below fail on its own rather than blocking forever.
+        await waitForGoogleIdentity();
+      }
       for (const email of remembered) {
-        const accessToken = await requestGoogleAccessToken({ silent: true, hint: email });
-        if (!accessToken) continue;
-        const connection = { id: `google:${email}`, provider: "google", label: email, accessToken };
-        setDriveConnections((prev) => [...prev.filter((c) => c.id !== connection.id), connection]);
-        if (isSyncDue(connection.id)) {
-          syncDriveAccountLibrary(connection).catch((err) =>
-            console.warn("Drive auto-sync failed for", email, err)
-          );
+        // Isolated per account: one account throwing (an expired session,
+        // a Google-side hiccup, anything) must never stop the rest of the
+        // list from being attempted — previously it did, which is why a
+        // failure on account N silently dropped every account after it.
+        try {
+          const accessToken = await requestGoogleAccessToken({ silent: true, hint: email });
+          if (!accessToken) continue;
+          const connection = { id: `google:${email}`, provider: "google", label: email, accessToken };
+          setDriveConnections((prev) => [...prev.filter((c) => c.id !== connection.id), connection]);
+          if (isSyncDue(connection.id)) {
+            syncDriveAccountLibrary(connection).catch((err) =>
+              console.warn("Drive auto-sync failed for", email, err)
+            );
+          }
+        } catch (err) {
+          console.warn("Silent Google reconnect failed for", email, err);
         }
       }
     })();
@@ -418,6 +441,7 @@ export default function App() {
       const connection = { id, provider: "google", label, accessToken };
       setDriveConnections((prev) => [...prev.filter((c) => c.id !== id), connection]);
       rememberAccount(label);
+      setRememberedAccounts(getRememberedAccounts());
       await syncDriveAccountLibrary(connection);
       if (retryTrackId) {
         setNotice("");
@@ -434,6 +458,7 @@ export default function App() {
     if (conn) {
       revokeGoogleAccessToken(conn.accessToken);
       forgetAccount(conn.label);
+      setRememberedAccounts(getRememberedAccounts());
     }
     setDriveConnections((prev) => prev.filter((c) => c.id !== connectionId));
   }
@@ -1323,6 +1348,10 @@ export default function App() {
         hasUnlinkedLocalTracks={tracks.some((t) => t.source === "local" && !t.file)}
         onRelinkFiles={handleRelinkFiles}
         driveConnections={driveConnections}
+        disconnectedAccounts={rememberedAccounts.filter(
+          (email) => !driveConnections.some((c) => c.label === email)
+        )}
+        onReconnectDrive={(email) => handleConnectDrive(email)}
         driveError={driveError}
         onConnectDrive={handleConnectDrive}
         onDisconnectDrive={handleDisconnectDrive}

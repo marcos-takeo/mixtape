@@ -1,8 +1,10 @@
 // Turns what the speech engine heard into something the app can act on.
 // Pure functions, no browser APIs — easy to test and to extend.
 //
-// English phrases only for now. To add a language, extend SIMPLE_COMMANDS /
-// the verb and filler lists below.
+// Supports English and Portuguese phrases (matched regardless of the
+// recognition engine's language — whichever the user actually said). To add
+// another language, extend SIMPLE_COMMANDS / the verb and filler lists below
+// with that language's phrases alongside the existing ones.
 
 import { fuzzyScore, fuzzyScoreNormalized, getSearchFields, normalizeForSearch } from "./search.js";
 import { ALL_TRACKS_ID, getOrderedPlaylists } from "./playlistOrder.js";
@@ -15,23 +17,48 @@ export const normalizeSpeech = normalizeForSearch;
 
 // Whole-utterance commands.
 const SIMPLE_COMMANDS = [
-  [/^(pause|stop|pause music|stop music|pause the music|stop the music|stop playing)$/, { type: "pause" }],
-  [/^(play|resume|continue|unpause|start|play music|start music|resume music|play the music)$/, { type: "resume" }],
-  [/^(next|skip|next song|next track|next one|skip song|skip track|skip this|skip this song|play next)$/, { type: "next" }],
-  [/^(previous|back|go back|previous song|previous track|previous one|last song|last track|play previous)$/, { type: "previous" }],
-  [/^(shuffle|shuffle on|shuffle mode|turn on shuffle|enable shuffle|start shuffle)$/, { type: "shuffle", value: true }],
-  [/^(shuffle off|stop shuffle|stop shuffling|turn off shuffle|disable shuffle|no shuffle)$/, { type: "shuffle", value: false }],
-  [/^(repeat|repeat all|repeat on|turn on repeat)$/, { type: "repeat", value: "all" }],
   [
-    /^(repeat one|repeat song|repeat track|repeat this|repeat this song|repeat this track|repeat current|repeat current song|loop this|loop this song)$/,
+    /^(pause|stop|pause music|stop music|pause the music|stop the music|stop playing|pausar|pausa|parar|para|pare|parar musica|pare a musica|para a musica|parar a musica|pausar musica|pausar a musica)$/,
+    { type: "pause" },
+  ],
+  [
+    /^(play|resume|continue|unpause|start|play music|start music|resume music|play the music|tocar|toca|reproduzir|continuar|retomar|iniciar|tocar musica|toca a musica|continuar a musica|voltar a tocar)$/,
+    { type: "resume" },
+  ],
+  [
+    /^(next|skip|next song|next track|next one|skip song|skip track|skip this|skip this song|play next|proxima|proximo|proxima musica|proxima faixa|proxima cancao|pular|pular musica|avancar|seguinte|toca a proxima|proxima por favor)$/,
+    { type: "next" },
+  ],
+  [
+    /^(previous|back|go back|previous song|previous track|previous one|last song|last track|play previous|anterior|volta|voltar|musica anterior|faixa anterior|cancao anterior|volta a musica|musica de antes|a anterior)$/,
+    { type: "previous" },
+  ],
+  [
+    /^(shuffle|shuffle on|shuffle mode|turn on shuffle|enable shuffle|start shuffle|aleatorio|modo aleatorio|ativar aleatorio|ligar aleatorio|embaralhar|tocar aleatorio|ativar o aleatorio|ligar o modo aleatorio)$/,
+    { type: "shuffle", value: true },
+  ],
+  [
+    /^(shuffle off|stop shuffle|stop shuffling|turn off shuffle|disable shuffle|no shuffle|desativar aleatorio|desligar aleatorio|parar aleatorio|sem aleatorio|desativar o aleatorio|desligar o modo aleatorio)$/,
+    { type: "shuffle", value: false },
+  ],
+  [
+    /^(repeat|repeat all|repeat on|turn on repeat|repetir|repetir tudo|repetir todas|ativar repeticao|ligar repeticao|repetir todas as musicas)$/,
+    { type: "repeat", value: "all" },
+  ],
+  [
+    /^(repeat one|repeat song|repeat track|repeat this|repeat this song|repeat this track|repeat current|repeat current song|loop this|loop this song|repetir uma|repetir essa|repetir esta|repetir essa musica|repetir esta musica|repetir a musica atual|repetir faixa atual|repetir musica atual|repetir esta faixa)$/,
     { type: "repeat", value: "one" },
   ],
-  [/^(repeat off|stop repeat|stop repeating|turn off repeat|no repeat|disable repeat)$/, { type: "repeat", value: "off" }],
+  [
+    /^(repeat off|stop repeat|stop repeating|turn off repeat|no repeat|disable repeat|desativar repeticao|desligar repeticao|parar repeticao|sem repeticao|desativar a repeticao)$/,
+    { type: "repeat", value: "off" },
+  ],
 ];
 
-const VERB_RE = /^(shuffle|play|listen to|put on|start playing|search for|search|find)\s+(.+)$/;
+const VERB_RE =
+  /^(shuffle|play|listen to|put on|start playing|search for|search|find|tocar|toca|ouvir|colocar|coloca|procurar|procura|buscar|busca|pesquisar|pesquisa|encontrar|encontra|aleatorio)\s+(.+)$/;
 const FILLER_RE =
-  /^(me|some|any|the|a|my|songs? by|tracks? by|music by|music from|songs? from|something by|anything by|artist|the artist|song|the song|track|the track|album|the album)\s+/;
+  /^(me|some|any|the|a|my|songs? by|tracks? by|music by|music from|songs? from|something by|anything by|artist|the artist|song|the song|track|the track|album|the album|alguma|algumas|algum|alguns|qualquer|minha|minhas|meu|meus|musicas? d[eo]s?|faixas? d[eo]s?|cancoes? d[eo]s?|musica d[eo]s?|algo d[eo]s?|do artista|da artista|o artista|a artista|artista|a musica|musica|a faixa|faixa|a cancao|cancao|o album|album)\s+/;
 
 // Spoken ways of asking for the whole library.
 const ALL_TRACKS_ALIASES = new Set([
@@ -44,6 +71,16 @@ const ALL_TRACKS_ALIASES = new Set([
   "my library",
   "the library",
   "library",
+  "todas as musicas",
+  "todas as faixas",
+  "todas as cancoes",
+  "toda a musica",
+  "toda a minha musica",
+  "todas as minhas musicas",
+  "tudo",
+  "minha biblioteca",
+  "a biblioteca",
+  "biblioteca",
 ]);
 
 /**
@@ -52,8 +89,8 @@ const ALL_TRACKS_ALIASES = new Set([
  */
 export function parseVoiceCommand(transcript) {
   let t = normalizeSpeech(transcript)
-    .replace(/^(please|hey|ok|okay)\s+/, "")
-    .replace(/\s+please$/, "")
+    .replace(/^(please|hey|ok|okay|por favor|ei|oi|opa|ok google)\s+/, "")
+    .replace(/\s+(please|por favor)$/, "")
     .trim();
   if (!t) return null;
 
@@ -64,7 +101,7 @@ export function parseVoiceCommand(transcript) {
   let shuffle = false;
   const verb = t.match(VERB_RE);
   if (verb) {
-    shuffle = verb[1] === "shuffle";
+    shuffle = verb[1] === "shuffle" || verb[1] === "aleatorio";
     t = verb[2];
   }
 
@@ -74,8 +111,12 @@ export function parseVoiceCommand(transcript) {
     t = t.replace(FILLER_RE, "");
   } while (t !== prev);
 
-  const playlistWord = /\bplaylist\b/.test(t);
-  if (playlistWord) t = t.replace(/\bplaylist\b/g, " ").replace(/\s+/g, " ").trim();
+  const playlistWord = /\b(playlist|lista de reproducao|lista)\b/.test(t);
+  if (playlistWord)
+    t = t
+      .replace(/\b(playlist|lista de reproducao|lista)\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
 
   if (!t) return null;
   return { type: "query", query: t, shuffle, playlistWord };

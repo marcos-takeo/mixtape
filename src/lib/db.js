@@ -5,10 +5,11 @@
 // handle when the browser still has permission, or re-picked otherwise.
 
 const DB_NAME = "mixtape-db";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const STORE_TRACKS = "tracks";
 const STORE_PLAYLISTS = "playlists";
 const STORE_LYRICS = "lyricsOverrides";
+const STORE_BOOKMARKS = "bookmarks";
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -23,6 +24,13 @@ function openDB() {
       }
       if (!db.objectStoreNames.contains(STORE_LYRICS)) {
         db.createObjectStore(STORE_LYRICS, { keyPath: "trackId" });
+      }
+      if (!db.objectStoreNames.contains(STORE_BOOKMARKS)) {
+        // Multiple bookmarks per track, so this store (unlike lyricsOverrides)
+        // is keyed by its own auto id, with an index to look up/clear all of
+        // one track's bookmarks.
+        const store = db.createObjectStore(STORE_BOOKMARKS, { keyPath: "id", autoIncrement: true });
+        store.createIndex("trackId", "trackId", { unique: false });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -157,6 +165,89 @@ export async function getLyricsOverride(trackId) {
 export async function deleteLyricsOverride(trackId) {
   const { t, store } = await tx(STORE_LYRICS, "readwrite");
   store.delete(trackId);
+  return new Promise((resolve, reject) => {
+    t.oncomplete = () => resolve();
+    t.onerror = () => reject(t.error);
+  });
+}
+
+// --- Bookmarks ---
+// { id (auto), trackId, positionSec, label, createdAt }
+// Unlimited per track; positionSec is where playback should resume from
+// (already adjusted by the caller — this store just stores what it's given).
+
+export async function addBookmark(trackId, positionSec, label = "") {
+  const { t, store } = await tx(STORE_BOOKMARKS, "readwrite");
+  const record = { trackId, positionSec, label, createdAt: Date.now() };
+  const req = store.add(record);
+  return new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve({ ...record, id: req.result });
+    req.onerror = () => reject(req.error);
+    t.onerror = () => reject(t.error);
+  });
+}
+
+export async function getBookmarksForTrack(trackId) {
+  const { t, store } = await tx(STORE_BOOKMARKS, "readonly");
+  const req = store.index("trackId").getAll(trackId);
+  return new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+    t.onerror = () => reject(t.error);
+  });
+}
+
+export async function updateBookmarkLabel(id, label) {
+  const { t, store } = await tx(STORE_BOOKMARKS, "readwrite");
+  return new Promise((resolve, reject) => {
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const record = getReq.result;
+      if (!record) {
+        resolve(null);
+        return;
+      }
+      const updated = { ...record, label };
+      store.put(updated);
+      resolve(updated);
+    };
+    getReq.onerror = () => reject(getReq.error);
+    t.onerror = () => reject(t.error);
+  });
+}
+
+export async function deleteBookmark(id) {
+  const { t, store } = await tx(STORE_BOOKMARKS, "readwrite");
+  store.delete(id);
+  return new Promise((resolve, reject) => {
+    t.oncomplete = () => resolve();
+    t.onerror = () => reject(t.error);
+  });
+}
+
+// Removes every bookmark for one track — called when the track itself is
+// removed from the library, so bookmarks never outlive their track.
+export async function deleteBookmarksForTrack(trackId) {
+  const { t, store } = await tx(STORE_BOOKMARKS, "readwrite");
+  return new Promise((resolve, reject) => {
+    const req = store.index("trackId").openCursor(IDBKeyRange.only(trackId));
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (cursor) {
+        cursor.delete();
+        cursor.continue();
+      } else {
+        resolve();
+      }
+    };
+    req.onerror = () => reject(req.error);
+    t.onerror = () => reject(t.error);
+  });
+}
+
+export async function clearAllBookmarks() {
+  const { t, store } = await tx(STORE_BOOKMARKS, "readwrite");
+  store.clear();
   return new Promise((resolve, reject) => {
     t.oncomplete = () => resolve();
     t.onerror = () => reject(t.error);

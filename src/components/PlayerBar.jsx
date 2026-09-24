@@ -14,6 +14,7 @@ import {
   VolumeIcon,
   PlusIcon,
   MoreIcon,
+  BookmarkIcon,
 } from "./Icons.jsx";
 
 export default function PlayerBar({
@@ -34,6 +35,7 @@ export default function PlayerBar({
   onOpenAddToPlaylist,
   playbackRate = 1,
   onOpenMore,
+  onAddBookmark,
 }) {
   const [expanded, setExpanded] = useState(false);
   const [lyrics, setLyrics] = useState(null); // undefined = loading, null = none found/not fetched
@@ -257,6 +259,14 @@ export default function PlayerBar({
               ) : (
                 <RepeatIcon width={15} height={15} />
               )}
+            </button>
+            <button
+              onClick={onAddBookmark}
+              aria-label="Bookmark this moment"
+              title="Bookmark this moment"
+              disabled={!track}
+            >
+              <BookmarkIcon width={17} height={17} />
             </button>
             <button
               onClick={onOpenMore}

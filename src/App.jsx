@@ -43,6 +43,12 @@ import {
   getAllPlaylists,
   putPlaylist,
   deletePlaylist as dbDeletePlaylist,
+  addBookmark,
+  getBookmarksForTrack,
+  updateBookmarkLabel,
+  deleteBookmark,
+  deleteBookmarksForTrack,
+  clearAllBookmarks,
 } from "./lib/db.js";
 import { trackSearchScore } from "./lib/search.js";
 import { resolveVoiceIntent } from "./lib/voiceCommands.js";
@@ -109,6 +115,9 @@ export default function App() {
   const [showTrackOptions, setShowTrackOptions] = useState(false);
   // Playback speed of the current track only; back to 1 on every track change / end.
   const [playbackRate, setPlaybackRate] = useState(1);
+  // Bookmarks for the current track only (like playbackRate above) — reloaded
+  // whenever currentTrackId changes, see the effect near the speed reset.
+  const [bookmarks, setBookmarks] = useState([]);
   const [addToPlaylistTrackId, setAddToPlaylistTrackId] = useState(null);
   const [showSplash, setShowSplash] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
@@ -160,6 +169,22 @@ export default function App() {
   // Speed is per track: every new track starts at 1x.
   useEffect(() => {
     setPlaybackRate(1);
+  }, [currentTrackId]);
+
+  // Bookmarks are per track too — load this track's from IndexedDB whenever
+  // the current track changes (or clear them if nothing's loaded).
+  useEffect(() => {
+    if (!currentTrackId) {
+      setBookmarks([]);
+      return;
+    }
+    let cancelled = false;
+    getBookmarksForTrack(currentTrackId).then((rows) => {
+      if (!cancelled) setBookmarks(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [currentTrackId]);
 
   // When a new track starts playing, scroll it into view in the (virtualized)
@@ -599,11 +624,13 @@ export default function App() {
 
   async function handleClearLibrary() {
     await clearAllTracks();
+    await clearAllBookmarks();
     persistedMetaRef.current.clear();
     orderCounterRef.current = 0;
     setTracks([]);
     setCurrentTrackId(null);
     setIsPlaying(false);
+    setBookmarks([]);
     setNotice("");
   }
 
@@ -613,6 +640,7 @@ export default function App() {
 
     persistedMetaRef.current.delete(track.id);
     await deleteTrack(track.id);
+    await deleteBookmarksForTrack(track.id);
     setTracks((prev) => prev.filter((t) => t.id !== track.id));
 
     if (currentTrackId === track.id) {
@@ -1121,6 +1149,41 @@ export default function App() {
     handleSeek(seekTarget(audio.currentTime, delta, duration));
   }
 
+  // Bookmarks: create one at the current playback position (read before the
+  // (blocking) label prompt, so the saved time is the moment the button was
+  // actually clicked, not wherever playback has moved to by the time the
+  // user finishes typing).
+  async function handleAddBookmark() {
+    if (!playingTrack) return;
+    const positionSec = audioRef.current?.currentTime ?? currentTime;
+    const typed = window.prompt("Label this bookmark (optional):", "");
+    const label = (typed || "").trim();
+    const saved = await addBookmark(playingTrack.id, positionSec, label);
+    setBookmarks((prev) => [...prev, saved]);
+  }
+
+  async function handleRenameBookmark(bookmark) {
+    const typed = window.prompt("Label for this bookmark:", bookmark.label || "");
+    if (typed === null) return; // cancelled
+    const updated = await updateBookmarkLabel(bookmark.id, typed.trim());
+    if (!updated) return;
+    setBookmarks((prev) => prev.map((b) => (b.id === bookmark.id ? updated : b)));
+  }
+
+  async function handleDeleteBookmark(bookmarkId) {
+    await deleteBookmark(bookmarkId);
+    setBookmarks((prev) => prev.filter((b) => b.id !== bookmarkId));
+  }
+
+  // Jumps to 2 seconds before the bookmarked moment (a little run-up so you
+  // land back in context) and resumes playback, same as picking a track.
+  function handleSeekToBookmark(bookmark) {
+    handleSeek(Math.max(0, bookmark.positionSec - 2));
+    audioRef.current?.play();
+    setIsPlaying(true);
+    setShowTrackOptions(false);
+  }
+
   async function handleDownloadArtwork({ artist, title, album }) {
     // Artwork lookup is intentionally read-only. The user must explicitly
     // click Save tags before the artwork is embedded into the audio file.
@@ -1479,6 +1542,7 @@ export default function App() {
         onOpenAddToPlaylist={() => playingTrack && setAddToPlaylistTrackId(playingTrack.id)}
         playbackRate={playbackRate}
         onOpenMore={() => playingTrack && setShowTrackOptions(true)}
+        onAddBookmark={handleAddBookmark}
       />
 
       <audio
@@ -1541,6 +1605,10 @@ export default function App() {
             setShowTrackOptions(false);
           }}
           onSeekBy={handleSeekBy}
+          bookmarks={bookmarks}
+          onSeekToBookmark={handleSeekToBookmark}
+          onRenameBookmark={handleRenameBookmark}
+          onDeleteBookmark={handleDeleteBookmark}
           onClose={() => setShowTrackOptions(false)}
         />
       )}

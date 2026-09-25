@@ -162,11 +162,19 @@ function getTokenClient() {
  *   accounts on load. Resolves to null (not a rejection) if it can't be
  *   done silently, since that's an expected outcome, not an error.
  *
+ * `forceFreshClient` throws away the shared token client and makes a new
+ * one before this call. Used for silent multi-account reconnect: reusing
+ * one token client for several back-to-back silent requests (each with a
+ * different login_hint) appears to leave it in a state where the 2nd of 3
+ * requests in a row fails even though the 1st and 3rd succeed — a fresh
+ * client per silent attempt removes any state carried over from the
+ * previous account's request as a possible cause.
+ *
  * Calls are expected to be serialized (never two in flight at once) — the
  * app already does this (the silent-reconnect loop awaits each account in
  * turn, and manual connects are one user action at a time).
  */
-export function requestGoogleAccessToken({ silent = false, hint } = {}) {
+export function requestGoogleAccessToken({ silent = false, hint, forceFreshClient = false } = {}) {
   return new Promise((resolve, reject) => {
     if (!CLIENT_ID) {
       reject(new Error("Google Drive isn't configured for this deployment (missing VITE_GOOGLE_CLIENT_ID)."));
@@ -176,6 +184,8 @@ export function requestGoogleAccessToken({ silent = false, hint } = {}) {
       reject(new Error("Google sign-in hasn't loaded yet — check your connection and try again."));
       return;
     }
+
+    if (forceFreshClient) tokenClient = null;
 
     pendingResolve = resolve;
     pendingReject = reject;

@@ -308,7 +308,7 @@ export default function App() {
         // list from being attempted — previously it did, which is why a
         // failure on account N silently dropped every account after it.
         try {
-          const accessToken = await requestGoogleAccessToken({ silent: true, hint: email });
+          const accessToken = await requestGoogleAccessToken({ silent: true, hint: email, forceFreshClient: true });
           if (!accessToken) continue;
           const connection = { id: `google:${email}`, provider: "google", label: email, accessToken };
           setDriveConnections((prev) => [...prev.filter((c) => c.id !== connection.id), connection]);
@@ -320,6 +320,11 @@ export default function App() {
         } catch (err) {
           console.warn("Silent Google reconnect failed for", email, err);
         }
+        // A real pause before the next account's silent request. Firing
+        // these back-to-back with no gap appears to be what makes the
+        // 2nd of 3 in a row fail even though the 1st and 3rd succeed —
+        // see requestGoogleAccessToken's forceFreshClient comment.
+        await new Promise((r) => setTimeout(r, 400));
       }
     })();
   }, []);

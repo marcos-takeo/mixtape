@@ -56,6 +56,7 @@ import { nextCarRate } from "./lib/playbackSpeed.js";
 import { seekTarget } from "./lib/seek.js";
 import { downloadFileName, saveBlobUrl } from "./lib/download.js";
 import TrackOptionsModal from "./components/TrackOptionsModal.jsx";
+import CarModeFab from "./components/CarModeFab.jsx";
 import { fetchAlbumArtwork } from "./lib/albumArtwork.js";
 import { useDebouncedValue } from "./lib/useDebouncedValue.js";
 import PlaylistManager from "./components/PlaylistManager.jsx";
@@ -133,6 +134,24 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(
     typeof window !== "undefined" ? window.innerWidth > 720 : true
   );
+
+  // Mobile-portrait Car mode shortcut button: shown only in that orientation,
+  // and only for this session once dismissed (deliberately not persisted —
+  // see openCarMode/CarModeFab for the reasoning: it should come back next
+  // time the app is opened, not stay dismissed forever).
+  const [isMobilePortrait, setIsMobilePortrait] = useState(
+    typeof window !== "undefined"
+      ? window.matchMedia("(max-width: 720px) and (orientation: portrait)").matches
+      : false
+  );
+  const [carFabDismissed, setCarFabDismissed] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(max-width: 720px) and (orientation: portrait)");
+    const handleChange = (e) => setIsMobilePortrait(e.matches);
+    mq.addEventListener("change", handleChange);
+    return () => mq.removeEventListener("change", handleChange);
+  }, []);
 
   // Detect iPad specifically (not just "any touch device") so we can nudge
   // the transport bar up away from the bottom edge — on iPadOS, touching
@@ -1652,6 +1671,10 @@ export default function App() {
           getVoicePhrases={getVoicePhrases}
           onClose={() => setCarMode(false)}
         />
+      )}
+
+      {!carMode && isMobilePortrait && !carFabDismissed && (
+        <CarModeFab onActivate={openCarMode} onDismiss={() => setCarFabDismissed(true)} />
       )}
     </>
   );

@@ -104,6 +104,12 @@ Shuffle, Repeat, a playlist button and a voice-search button (placeholder —
 it shows "coming soon" until it's implemented). The ✕ button (or Esc) leaves
 car mode; music keeps playing either way.
 
+On a phone held in portrait, a floating car icon also floats over the
+library so you don't have to open the menu to get there. Drag it anywhere
+out of the way; tap it to jump straight into Car mode; tap its small ✕ to
+dismiss it for the rest of this visit (it comes back next time the app is
+opened — it doesn't remember being dismissed).
+
 The playlist button opens a big-type list of all playlists in the same order
 as the Playlists page (see `src/lib/playlistOrder.js`, shared by both), with
 only **Play** (from the top of the list, shuffle off) and **Shuffle**

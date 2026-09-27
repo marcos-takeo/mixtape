@@ -5,7 +5,7 @@
 // Row actions (edit, add to playlist, remove) are columns of their own, so
 // they can be switched on and off like any other column.
 export const DATA_COLUMNS = ["artist", "album", "source", "file", "duration"];
-export const ACTION_COLUMNS = ["edit", "playlist", "remove"];
+export const ACTION_COLUMNS = ["edit", "playlist", "queue", "remove"];
 export const OPTIONAL_COLUMNS = [...DATA_COLUMNS, ...ACTION_COLUMNS];
 
 export const COLUMN_LABELS = {
@@ -16,6 +16,7 @@ export const COLUMN_LABELS = {
   duration: "Length",
   edit: "Edit",
   playlist: "Add to playlist",
+  queue: "Add to queue",
   remove: "Remove",
 };
 

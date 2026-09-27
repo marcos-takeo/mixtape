@@ -15,6 +15,7 @@ import {
   PlusIcon,
   MoreIcon,
   BookmarkIcon,
+  QueueIcon,
 } from "./Icons.jsx";
 
 export default function PlayerBar({
@@ -36,6 +37,8 @@ export default function PlayerBar({
   playbackRate = 1,
   onOpenMore,
   onAddBookmark,
+  onOpenQueue,
+  queueCount = 0,
 }) {
   const [expanded, setExpanded] = useState(false);
   const [lyrics, setLyrics] = useState(null); // undefined = loading, null = none found/not fetched
@@ -267,6 +270,15 @@ export default function PlayerBar({
               disabled={!track}
             >
               <BookmarkIcon width={17} height={17} />
+            </button>
+            <button
+              onClick={onOpenQueue}
+              aria-label="Play queue"
+              title="Play queue"
+              className="queue-btn"
+            >
+              <QueueIcon width={17} height={17} />
+              {queueCount > 0 && <span className="queue-badge">{queueCount > 9 ? "9+" : queueCount}</span>}
             </button>
             <button
               onClick={onOpenMore}

@@ -256,3 +256,15 @@ export function BookmarkIcon(props) {
     </svg>
   );
 }
+
+export function QueueIcon(props) {
+  return (
+    <svg {...base} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M3 6h13" />
+      <path d="M3 12h9" />
+      <path d="M3 18h9" />
+      <path d="M18 14v7" />
+      <path d="M14.5 17.5h7" />
+    </svg>
+  );
+}

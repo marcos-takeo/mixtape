@@ -630,6 +630,11 @@ button {
   display: none;
 }
 
+.track-list.hide-col-queue .col-queue,
+.track-list.hide-col-queue .track-cell-queue {
+  display: none;
+}
+
 .track-list.hide-col-remove .col-remove,
 .track-list.hide-col-remove .track-cell-remove {
   display: none;
@@ -1260,6 +1265,26 @@ button {
   /* Active state is intentionally different from hover so touch devices
      can clearly distinguish an enabled toggle from a pointer hover. */
   color: var(--accent);
+}
+
+.queue-btn {
+  position: relative;
+}
+
+.queue-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: #000;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
 }
 
 @media (hover: hover) {
@@ -2386,6 +2411,56 @@ button.playlist-manager-name:hover {
   }
 }
 
+/* ---------- Queue modal (standalone, opened from the queue button in the player bar) ---------- */
+
+.queue-modal {
+  width: 420px;
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  padding: 0;
+  overflow: hidden;
+}
+
+.queue-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 28px;
+}
+
+.queue-modal-body h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 40px; /* room for the close button */
+  margin: 0 0 14px;
+}
+
+.queue-modal-body .link-btn {
+  margin-top: 10px;
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .editor-backdrop:has(.queue-modal) {
+    padding: 8px max(8px, env(safe-area-inset-right)) 8px max(8px, env(safe-area-inset-left));
+  }
+
+  .queue-modal {
+    width: min(640px, 100%);
+  }
+
+  .queue-modal-body {
+    padding: 14px 16px;
+  }
+
+  .queue-modal-body h2 {
+    margin-bottom: 8px;
+  }
+}
+
 .track-option-btn {
   display: flex;
   align-items: center;
@@ -2501,6 +2576,14 @@ button.playlist-manager-name:hover {
 
 .bookmark-jump-btn:hover {
   border-color: var(--accent);
+}
+
+.queue-row-label {
+  cursor: default;
+}
+
+.queue-row-label:hover {
+  border-color: var(--divider);
 }
 
 .bookmark-time {

@@ -72,10 +72,34 @@ case, on both sides of the comparison (`normalizeForSearch` in
 
 The column button above the song table lets you choose what to show, per
 playlist. Besides the data columns (artist, album, source, file name, length)
-it has an **Actions** group: **Edit**, **Add to playlist** and **Remove** each
-live in their own untitled column and can be switched off individually.
-Settings saved by older versions keep working; the actions simply stay
-visible until you hide them.
+it has an **Actions** group: **Edit**, **Add to playlist**, **Add to queue**
+and **Remove** each live in their own untitled column and can be switched off
+individually. Settings saved by older versions keep working; the actions
+simply stay visible until you hide them.
+
+## Play queue
+
+Every row's queue icon adds that song to an explicit "play next" list,
+independent of whatever playlist or view you're currently looking at — add
+a track from a search result, another playlist, anywhere, without leaving
+where you are. The same song can be queued more than once.
+
+Manage it from the queue button in the player bar (it shows a small count
+badge once anything's queued, and works whether or not something is
+currently playing): it's listed in the order it'll play, with buttons to
+move a song up/down or remove it, and a **Clear queue** link when it isn't
+empty. The queue is session-only — it's cleared when the app is reloaded,
+the same as every other player's queue.
+
+Once anything is queued, **Next** (and a song finishing naturally) always
+plays from the queue first, in order, before falling back to the normal
+playlist/library order. Queued songs are never shuffled — they always play
+in the exact order you added them, regardless of the shuffle setting.
+Repeat-one is paused while the queue has anything left to play (otherwise
+the current song would repeat forever and the queue would never get a
+turn) and resumes once the queue is empty again. **Previous** is unaffected
+by the queue — it always steps back through the current playlist/library
+order.
 
 ## More options ("…") and playback speed
 
@@ -88,6 +112,9 @@ the playing track (it isn't part of car mode):
   +60s) in the playing song. The menu stays open so you can tap repeatedly.
   Skipping back past the start goes to 0:00; skipping forward past the end
   moves on to the next song.
+- **Bookmarks** lists saved moments in this track — see the bookmark button
+  in the player bar to add one. Tapping a bookmark jumps to 2 seconds
+  before it and resumes playback; each one can be renamed or deleted here.
 - **Playback speed** offers 0.5×, 0.75×, 1×, 1.25×, 1.5× and 2×. Pitch is
   always preserved. Speed applies to the current track only: it goes back to
   1× when the track ends or you switch tracks. The **…** button is highlighted

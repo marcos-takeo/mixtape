@@ -56,6 +56,7 @@ import { nextCarRate } from "./lib/playbackSpeed.js";
 import { seekTarget } from "./lib/seek.js";
 import { downloadFileName, saveBlobUrl } from "./lib/download.js";
 import TrackOptionsModal from "./components/TrackOptionsModal.jsx";
+import QueueModal from "./components/QueueModal.jsx";
 import CarModeFab from "./components/CarModeFab.jsx";
 import { fetchAlbumArtwork } from "./lib/albumArtwork.js";
 import { useDebouncedValue } from "./lib/useDebouncedValue.js";
@@ -114,11 +115,17 @@ export default function App() {
   const [showAbout, setShowAbout] = useState(false);
   const [carMode, setCarMode] = useState(false);
   const [showTrackOptions, setShowTrackOptions] = useState(false);
+  const [showQueue, setShowQueue] = useState(false);
   // Playback speed of the current track only; back to 1 on every track change / end.
   const [playbackRate, setPlaybackRate] = useState(1);
   // Bookmarks for the current track only (like playbackRate above) — reloaded
   // whenever currentTrackId changes, see the effect near the speed reset.
   const [bookmarks, setBookmarks] = useState([]);
+  // Explicit "play next" queue — separate from the derived `queue` below
+  // (which is just whatever list is on screen). Session-only, like every
+  // reference player's queue (Spotify, Apple Music, etc.) — not persisted.
+  // Each entry has its own id so the same track can be queued more than once.
+  const [playQueue, setPlayQueue] = useState([]); // [{ id, trackId }]
   const [addToPlaylistTrackId, setAddToPlaylistTrackId] = useState(null);
   const [showSplash, setShowSplash] = useState(true);
   const [splashFading, setSplashFading] = useState(false);
@@ -176,6 +183,7 @@ export default function App() {
   const voiceResumeRef = useRef(false);
   const persistedMetaRef = useRef(new Map());
   const orderCounterRef = useRef(0);
+  const queueIdRef = useRef(0);
   const shuffleHistoryRef = useRef([]);
   const trackListRef = useRef(null);
 
@@ -1110,6 +1118,7 @@ export default function App() {
   }
 
   function playNext() {
+    if (playNextFromQueue()) return;
     if (!queue.length) return;
     if (shuffle) {
       const candidates = queue.filter((t) => t.id !== currentTrackId);
@@ -1206,6 +1215,42 @@ export default function App() {
     audioRef.current?.play();
     setIsPlaying(true);
     setShowTrackOptions(false);
+  }
+
+  // --- Play queue: explicit "play next" list, independent of whatever
+  // playlist/library view is on screen. See playNextFromQueue below for how
+  // it takes priority over the normal Next/repeat/shuffle behavior.
+  function handleAddToQueue(track) {
+    queueIdRef.current += 1;
+    setPlayQueue((prev) => [...prev, { id: queueIdRef.current, trackId: track.id }]);
+  }
+
+  function handleRemoveFromQueue(queueItemId) {
+    setPlayQueue((prev) => prev.filter((q) => q.id !== queueItemId));
+  }
+
+  function handleReorderQueue(fromIndex, toIndex) {
+    setPlayQueue((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  }
+
+  function handleClearQueue() {
+    setPlayQueue([]);
+  }
+
+  // Pops and plays the next queued track, if there is one. Returns whether
+  // it did, so callers (playNext, handleTrackEnded) can fall back to their
+  // normal behavior when the queue is empty.
+  function playNextFromQueue() {
+    if (!playQueue.length) return false;
+    const [item, ...rest] = playQueue;
+    setPlayQueue(rest);
+    playById(item.trackId);
+    return true;
   }
 
   async function handleDownloadArtwork({ artist, title, album }) {
@@ -1406,14 +1451,17 @@ export default function App() {
 
   function handleTrackEnded() {
     setPlaybackRate(1); // per-track speed: finished -> back to 1x
-    if (repeatMode === "one") {
+    // The queue always gets first claim on "what plays next" — repeat-one
+    // would otherwise loop the current song forever and the queue would
+    // never get its turn.
+    if (repeatMode === "one" && !playQueue.length) {
       if (audioRef.current) {
         audioRef.current.currentTime = 0;
         audioRef.current.play();
       }
       return;
     }
-    if (repeatMode === "off" && !shuffle) {
+    if (repeatMode === "off" && !shuffle && !playQueue.length) {
       const idx = queue.findIndex((t) => t.id === currentTrackId);
       if (idx === -1 || idx === queue.length - 1) {
         audioRef.current?.pause();
@@ -1541,6 +1589,7 @@ export default function App() {
             onReorder={handleReorder}
           activePlaylistId={activePlaylistId}
           onOpenAddToPlaylist={(track) => setAddToPlaylistTrackId(track.id)}
+          onAddToQueue={handleAddToQueue}
           onRemoveFromPlaylist={handleRemoveFromPlaylist}
           visibleColumns={visibleColumns}
           />
@@ -1567,6 +1616,8 @@ export default function App() {
         playbackRate={playbackRate}
         onOpenMore={() => playingTrack && setShowTrackOptions(true)}
         onAddBookmark={handleAddBookmark}
+        onOpenQueue={() => setShowQueue(true)}
+        queueCount={playQueue.length}
       />
 
       <audio
@@ -1634,6 +1685,17 @@ export default function App() {
           onRenameBookmark={handleRenameBookmark}
           onDeleteBookmark={handleDeleteBookmark}
           onClose={() => setShowTrackOptions(false)}
+        />
+      )}
+
+      {showQueue && (
+        <QueueModal
+          tracks={tracks}
+          playQueue={playQueue}
+          onRemoveFromQueue={handleRemoveFromQueue}
+          onReorderQueue={handleReorderQueue}
+          onClearQueue={handleClearQueue}
+          onClose={() => setShowQueue(false)}
         />
       )}
 

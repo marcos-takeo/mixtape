@@ -1,7 +1,7 @@
 import React, { forwardRef, useImperativeHandle, useMemo, useRef } from "react";
 import { List, useListRef } from "react-window";
 import { formatDuration } from "../lib/id3.js";
-import { LocalFileIcon, CloudIcon, PlusIcon, TrashIcon } from "./Icons.jsx";
+import { LocalFileIcon, CloudIcon, PlusIcon, QueueIcon, TrashIcon } from "./Icons.jsx";
 import { OPTIONAL_COLUMNS } from "../lib/columnPrefs.js";
 
 const ROW_HEIGHT = 54;
@@ -14,7 +14,7 @@ const ROW_HEIGHT = 54;
 // hidden and always included.
 const BREAKPOINT_LAYOUTS = {
   desktop: {
-    order: ["art", "title", "artist", "album", "source", "file", "duration", "edit", "playlist", "remove"],
+    order: ["art", "title", "artist", "album", "source", "file", "duration", "edit", "playlist", "queue", "remove"],
     width: {
       art: "44px",
       title: "1.3fr",
@@ -25,12 +25,13 @@ const BREAKPOINT_LAYOUTS = {
       duration: "64px",
       edit: "32px",
       playlist: "32px",
+      queue: "32px",
       remove: "32px",
     },
     forcedHidden: [],
   },
   mobile: {
-    order: ["art", "title", "artist", "album", "source", "duration", "edit", "playlist", "remove"],
+    order: ["art", "title", "artist", "album", "source", "duration", "edit", "playlist", "queue", "remove"],
     width: {
       art: "36px",
       title: "1.1fr",
@@ -40,12 +41,13 @@ const BREAKPOINT_LAYOUTS = {
       duration: "46px",
       edit: "30px",
       playlist: "30px",
+      queue: "30px",
       remove: "30px",
     },
     forcedHidden: ["file"],
   },
   mobilePortrait: {
-    order: ["art", "title", "artist", "source", "edit", "playlist", "remove"],
+    order: ["art", "title", "artist", "source", "edit", "playlist", "queue", "remove"],
     width: {
       art: "36px",
       title: "minmax(0, 1.4fr)",
@@ -53,6 +55,7 @@ const BREAKPOINT_LAYOUTS = {
       source: "28px",
       edit: "30px",
       playlist: "30px",
+      queue: "30px",
       remove: "30px",
     },
     forcedHidden: ["file", "album", "duration"],
@@ -95,6 +98,7 @@ function Row({
   onReorder,
   activePlaylistId,
   onOpenAddToPlaylist,
+  onAddToQueue,
   onRemoveFromPlaylist,
 }) {
   const track = tracks[index];
@@ -178,6 +182,16 @@ function Row({
           <PlusIcon width={14} height={14} />
         </button>
       </span>
+      <span className="track-action-cell track-cell-queue">
+        <button
+          className="row-action-btn"
+          title="Add to queue"
+          aria-label="Add to queue"
+          onClick={() => onAddToQueue(track)}
+        >
+          <QueueIcon width={15} height={15} />
+        </button>
+      </span>
       <span className="track-action-cell track-cell-remove">
         {activePlaylistId ? (
           <button
@@ -226,6 +240,7 @@ const TrackList = forwardRef(function TrackList(
   onReorder,
   activePlaylistId,
   onOpenAddToPlaylist,
+  onAddToQueue,
   onRemoveFromPlaylist,
   visibleColumns,
   },
@@ -263,6 +278,7 @@ const TrackList = forwardRef(function TrackList(
       onReorder,
       activePlaylistId,
       onOpenAddToPlaylist,
+      onAddToQueue,
       onRemoveFromPlaylist,
     }),
     [
@@ -276,6 +292,7 @@ const TrackList = forwardRef(function TrackList(
       onReorder,
       activePlaylistId,
       onOpenAddToPlaylist,
+      onAddToQueue,
       onRemoveFromPlaylist,
     ]
   );
@@ -312,6 +329,7 @@ const TrackList = forwardRef(function TrackList(
         <span className="col-right col-duration">Length</span>
         <span className="col-edit" />
         <span className="col-playlist" />
+        <span className="col-queue" />
         <span className="col-remove" />
       </div>
 

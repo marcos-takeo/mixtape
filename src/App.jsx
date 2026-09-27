@@ -552,7 +552,7 @@ export default function App() {
 
     try {
       const partialBlob = await fetchDriveFileRange(connection.accessToken, f.id);
-      const tags = await readTags(partialBlob, f.name);
+      const tags = await readTags(partialBlob, f.name, f.sizeBytes);
       const record = {
         ...placeholder,
         title: tags.title,
@@ -1601,7 +1601,7 @@ export default function App() {
         track={playingTrack}
         isPlaying={isPlaying}
         currentTime={currentTime}
-        duration={playingTrack?.durationSec || audioRef.current?.duration || 0}
+        duration={audioRef.current?.duration || playingTrack?.durationSec || 0}
         volume={volume}
         shuffle={shuffle}
         onTogglePlay={togglePlay}
@@ -1625,10 +1625,29 @@ export default function App() {
         src={safeAudioSrc(playingTrack?.objectUrl)}
         onTimeUpdate={(e) => setCurrentTime(e.target.currentTime)}
         onLoadedMetadata={(e) => {
+          const realDuration = e.target.duration;
+          if (!Number.isFinite(realDuration) || realDuration <= 0) return;
           setTracks((prev) =>
-            prev.map((t) =>
-              t.id === currentTrackId && !t.durationSec ? { ...t, durationSec: e.target.duration } : t
-            )
+            prev.map((t) => {
+              if (t.id !== currentTrackId) return t;
+              // The <audio> element's own decoded duration is authoritative
+              // once it's loaded — always correct the stored value here, even
+              // when one already exists and is simply wrong. Previously this
+              // only filled in a *missing* duration (`!t.durationSec`), so a
+              // bad tag-read estimate (e.g. a truncated partial download used
+              // to read tags quickly, without needing the whole file) could
+              // never be corrected by actually playing the track — it stayed
+              // wrong forever, in the library list too, since nothing ever
+              // wrote the fix back to storage.
+              if (Math.abs((t.durationSec ?? 0) - realDuration) < 0.5) return t; // already accurate
+              const record = persistedMetaRef.current.get(t.id);
+              if (record) {
+                const updatedRecord = { ...record, durationSec: realDuration };
+                persistedMetaRef.current.set(t.id, updatedRecord);
+                putTrack(updatedRecord).catch(() => {});
+              }
+              return { ...t, durationSec: realDuration };
+            })
           );
         }}
         // The app wants sound but the element isn't playing yet: this is the

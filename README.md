@@ -544,6 +544,56 @@ Because this is a standards-based PWA:
   controls, since browsers restrict background audio differently than
   native apps.
 
+## Content-Security-Policy
+
+`index.html` sets a CSP via `<meta http-equiv>` that only allows what this
+app actually uses: itself (`'self'`), Google's sign-in script and API
+(`accounts.google.com`, `www.googleapis.com`, `oauth2.googleapis.com`),
+Google Fonts (`fonts.googleapis.com`/`fonts.gstatic.com`), and the metadata
+providers used for tag/artwork/lyric lookups (`musicbrainz.org`,
+`coverartarchive.org`, `lrclib.net`). Everything else — arbitrary scripts,
+frames, connections — is refused by default. `object-src 'none'` and a
+locked-down `base-uri`/`form-action` close off some of the classic ways an
+injected payload would otherwise escalate.
+
+Two things worth knowing if you touch this later:
+
+- **`style-src` allows `'unsafe-inline'`.** This app sets a lot of
+  genuinely dynamic inline `style=""` attributes in React (drag position
+  for the car-mode button, seek-bar/volume fill, per-playlist column
+  widths from Column Settings) that change on every render and can't be
+  pinned to a static hash. Locking style-src down fully would mean
+  rewriting all of that through CSS custom properties instead — a real
+  option later, just out of scope for a first pass. `script-src` has no
+  such exception: everything there is either same-origin or the one named
+  Google host, with no `'unsafe-inline'`/`'unsafe-eval'` at all — that's
+  the directive that actually matters most for XSS.
+- **The inline service-worker registration was moved to
+  `public/register-sw.js`.** A meta-tag CSP can't read a script's actual
+  content, only what's in the `<script>` element itself, so an inline
+  script needs a content hash to be allowed — and that hash silently
+  breaks the moment anyone edits the script (CSP just refuses it, no
+  build error). Moving it to its own file sidesteps that entirely: it's
+  same-origin, already covered by `script-src 'self'`, and can be edited
+  freely.
+
+A `<meta>` tag can't set every directive — notably `frame-ancestors`
+(clickjacking protection) is silently ignored when set this way, by the
+CSP spec's own design. `public/_headers` (Netlify, Cloudflare Pages — read
+automatically) and `vercel.json` (Vercel) are included with the fuller,
+header-based version of the same policy, plus `frame-ancestors 'self'`
+and a few standard companion headers (`X-Frame-Options`,
+`X-Content-Type-Options`, `Referrer-Policy`, and a `Permissions-Policy`
+that allows the microphone for voice search and denies camera/geolocation/
+everything else this app doesn't use). GitHub Pages can't serve custom
+headers at all, so the meta tag is the only protection there — everything
+except `frame-ancestors` still applies.
+
+If you add a call to a new external host later (another metadata
+provider, say), it needs adding to all three places (`index.html`,
+`public/_headers`, `vercel.json`) or it'll be silently blocked — the
+browser just drops the request; nothing throws a build error.
+
 ## Known PoC limitations (by design, easy to extend)
 
 - Shuffle picks a fresh random track each time rather than pre-computing

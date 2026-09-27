@@ -200,7 +200,7 @@ function Row({
             aria-label="Remove from playlist"
             onClick={() => onRemoveFromPlaylist(track.id)}
           >
-            ×
+            <TrashIcon width={14} height={14} />
           </button>
         ) : (
           <button

@@ -4,6 +4,40 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#000000" />
+    <!--
+      Content-Security-Policy — kept in sync with what this app actually
+      talks to. If you add a new external host (another lyrics/metadata
+      provider, etc.), it needs adding here too or it'll be silently
+      blocked. See the "Content-Security-Policy" section in README.md for
+      what each host is for, and for the stronger header-based version
+      (this meta tag can't set frame-ancestors — the README explains why
+      and gives host config files that can).
+
+      style-src allows 'unsafe-inline': this app sets a lot of genuinely
+      dynamic inline style="" attributes (drag position, progress bars,
+      per-playlist column widths) that can't be pinned to a static hash.
+      That's a real, deliberate trade-off, not an oversight — see the
+      README section for the reasoning. script-src has no such exception:
+      every script here is either same-origin or the one named Google host.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self';
+        script-src 'self' https://accounts.google.com;
+        style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+        font-src 'self' https://fonts.gstatic.com;
+        img-src 'self' blob: data:;
+        media-src 'self' blob:;
+        connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com https://musicbrainz.org https://coverartarchive.org https://lrclib.net;
+        frame-src https://accounts.google.com;
+        worker-src 'self';
+        manifest-src 'self';
+        base-uri 'self';
+        form-action 'self';
+        object-src 'none';
+      "
+    />
     <title>Mixtape - Song player</title>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icons/favicon-32.png" type="image/png" sizes="32x32" />
@@ -20,12 +54,7 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
-    <script>
-      if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => {
-          navigator.serviceWorker.register("/sw.js").catch(() => {});
-        });
-      }
-    </script>
+    <script src="/register-sw.js"></script>
   </body>
 </html>
+

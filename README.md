@@ -398,6 +398,24 @@ short list of alternates yourself — your pick is remembered for that
 track (persisted in IndexedDB, so it survives a reload) until you click
 **Reset to automatic**.
 
+### Adjusting lyric timing
+
+Even the right version of a song's synced lyrics can be a second or two
+off for your particular file (a different edit, a longer intro…). When
+synced lyrics are showing, a row of **Advance** and **Delay** buttons
+(0.5s, 1s, 1.5s each) sits above them: Advance makes lines highlight
+sooner, Delay makes them highlight later. Taps accumulate, so a lyric
+that's 3s late is two taps of Advance 1.5s; the total is shown next to
+the buttons ("Delayed 1.0s", "Advanced 2.5s", or "In sync") with a
+**Reset** link, and is capped at ±30s. It shifts the whole song — not
+line by line — and is saved per song (its own IndexedDB store,
+`lyricsOffsets`, keyed by track id), so the next time you play it the
+lyrics are already lined up. Switching to a different lyrics version
+(**Try another match** / **Reset to automatic**) resets the offset to 0,
+since it was tuned to the old version's timing. Removing a song from the
+library (or clearing the library) deletes its saved offset and any manually
+picked lyrics match along with it.
+
 ## Layout & mobile
 
 The sidebar has its own collapse button (an SVG chevron, not a text

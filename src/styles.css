@@ -1153,6 +1153,54 @@ button {
   flex-shrink: 0;
 }
 
+.lyrics-offset {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px 16px;
+  flex-shrink: 0;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+
+.lyrics-offset-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.lyrics-offset-label {
+  color: var(--text-muted);
+  margin-right: 2px;
+}
+
+.lyrics-offset-btn {
+  background: none;
+  border: 1px solid var(--divider);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 3px 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (hover: hover) {
+  .lyrics-offset-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+}
+
+.lyrics-offset-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent-secondary);
+  min-width: 90px;
+  justify-content: center;
+}
+
 .lyrics-actions {
   display: flex;
   gap: 12px;

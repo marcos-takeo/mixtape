@@ -49,6 +49,10 @@ import {
   deleteBookmark,
   deleteBookmarksForTrack,
   clearAllBookmarks,
+  deleteLyricsOffset,
+  deleteLyricsOverride,
+  clearAllLyricsOffsets,
+  clearAllLyricsOverrides,
 } from "./lib/db.js";
 import { trackSearchScore } from "./lib/search.js";
 import { resolveVoiceIntent } from "./lib/voiceCommands.js";
@@ -657,6 +661,8 @@ export default function App() {
   async function handleClearLibrary() {
     await clearAllTracks();
     await clearAllBookmarks();
+    await clearAllLyricsOffsets();
+    await clearAllLyricsOverrides();
     persistedMetaRef.current.clear();
     orderCounterRef.current = 0;
     setTracks([]);
@@ -673,6 +679,8 @@ export default function App() {
     persistedMetaRef.current.delete(track.id);
     await deleteTrack(track.id);
     await deleteBookmarksForTrack(track.id);
+    await deleteLyricsOffset(track.id);
+    await deleteLyricsOverride(track.id);
     setTracks((prev) => prev.filter((t) => t.id !== track.id));
 
     if (currentTrackId === track.id) {

@@ -5,11 +5,12 @@
 // handle when the browser still has permission, or re-picked otherwise.
 
 const DB_NAME = "mixtape-db";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const STORE_TRACKS = "tracks";
 const STORE_PLAYLISTS = "playlists";
 const STORE_LYRICS = "lyricsOverrides";
 const STORE_BOOKMARKS = "bookmarks";
+const STORE_LYRICS_OFFSETS = "lyricsOffsets";
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -31,6 +32,14 @@ function openDB() {
         // one track's bookmarks.
         const store = db.createObjectStore(STORE_BOOKMARKS, { keyPath: "id", autoIncrement: true });
         store.createIndex("trackId", "trackId", { unique: false });
+      }
+      if (!db.objectStoreNames.contains(STORE_LYRICS_OFFSETS)) {
+        // One whole-song timing adjustment per track for synced lyrics.
+        // Deliberately its own store: lyricsOverrides means "the user picked
+        // a different lyrics version", and the track record itself gets
+        // rebuilt from a fixed field list in places (e.g. first play of a
+        // Drive track), which would silently drop an extra field.
+        db.createObjectStore(STORE_LYRICS_OFFSETS, { keyPath: "trackId" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -247,6 +256,56 @@ export async function deleteBookmarksForTrack(trackId) {
 
 export async function clearAllBookmarks() {
   const { t, store } = await tx(STORE_BOOKMARKS, "readwrite");
+  store.clear();
+  return new Promise((resolve, reject) => {
+    t.oncomplete = () => resolve();
+    t.onerror = () => reject(t.error);
+  });
+}
+
+// --- Lyrics timing offsets ---
+// { trackId, offsetSec } — positive = highlight lyrics later (delay),
+// negative = earlier (advance). A track with no adjustment has no record.
+
+export async function getLyricsOffset(trackId) {
+  const { t, store } = await tx(STORE_LYRICS_OFFSETS, "readonly");
+  const req = store.get(trackId);
+  return new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result?.offsetSec ?? 0);
+    req.onerror = () => reject(req.error);
+    t.onerror = () => reject(t.error);
+  });
+}
+
+export async function putLyricsOffset(trackId, offsetSec) {
+  const { t, store } = await tx(STORE_LYRICS_OFFSETS, "readwrite");
+  store.put({ trackId, offsetSec });
+  return new Promise((resolve, reject) => {
+    t.oncomplete = () => resolve();
+    t.onerror = () => reject(t.error);
+  });
+}
+
+export async function deleteLyricsOffset(trackId) {
+  const { t, store } = await tx(STORE_LYRICS_OFFSETS, "readwrite");
+  store.delete(trackId);
+  return new Promise((resolve, reject) => {
+    t.oncomplete = () => resolve();
+    t.onerror = () => reject(t.error);
+  });
+}
+
+export async function clearAllLyricsOffsets() {
+  const { t, store } = await tx(STORE_LYRICS_OFFSETS, "readwrite");
+  store.clear();
+  return new Promise((resolve, reject) => {
+    t.oncomplete = () => resolve();
+    t.onerror = () => reject(t.error);
+  });
+}
+
+export async function clearAllLyricsOverrides() {
+  const { t, store } = await tx(STORE_LYRICS, "readwrite");
   store.clear();
   return new Promise((resolve, reject) => {
     t.oncomplete = () => resolve();

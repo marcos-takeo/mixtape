@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { formatDuration } from "../lib/id3.js";
-import { fetchLyricsForTrack, searchLyricsCandidates, applyManualLyricsMatch, clearManualLyricsMatch } from "../lib/lyrics.js";
+import {
+  fetchLyricsForTrack,
+  searchLyricsCandidates,
+  applyManualLyricsMatch,
+  clearManualLyricsMatch,
+  loadLyricsOffset,
+  saveLyricsOffset,
+} from "../lib/lyrics.js";
+import { nextLyricsOffset } from "../lib/lrcParser.js";
 import Marquee from "./Marquee.jsx";
 import SyncedLyrics from "./SyncedLyrics.jsx";
 import {
@@ -45,6 +53,9 @@ export default function PlayerBar({
   const [lyricsError, setLyricsError] = useState("");
   const [candidates, setCandidates] = useState(null); // null = picker closed, [] = loading/empty, [...] = results
   const [candidatesLoading, setCandidatesLoading] = useState(false);
+  // Whole-song timing adjustment for the synced lyrics (seconds): positive =
+  // highlight later (delay), negative = earlier (advance). Saved per track.
+  const [lyricsOffset, setLyricsOffset] = useState(0);
 
   useEffect(() => {
     if (!expanded || !track) return;
@@ -52,6 +63,12 @@ export default function PlayerBar({
     setLyrics(undefined);
     setLyricsError("");
     setCandidates(null);
+    setLyricsOffset(0); // don't show the previous track's adjustment while loading this one's
+    loadLyricsOffset(track)
+      .then((offset) => {
+        if (!cancelled) setLyricsOffset(offset);
+      })
+      .catch(() => {});
     fetchLyricsForTrack(track)
       .then((result) => {
         if (!cancelled) setLyrics(result);
@@ -77,16 +94,37 @@ export default function PlayerBar({
     }
   }
 
+  // A different lyrics version has different timing errors, so an offset
+  // tuned for the previous one would likely make things worse — start over.
+  function resetLyricsOffset() {
+    setLyricsOffset(0);
+    saveLyricsOffset(track, 0).catch(() => {});
+  }
+
+  function adjustLyricsOffset(delta) {
+    const next = nextLyricsOffset(lyricsOffset, delta);
+    setLyricsOffset(next);
+    saveLyricsOffset(track, next).catch(() => {});
+  }
+
   async function handlePickCandidate(candidate) {
     const result = await applyManualLyricsMatch(track, candidate);
+    resetLyricsOffset();
     setLyrics(result);
     setCandidates(null);
   }
 
   async function handleResetToAutomatic() {
     await clearManualLyricsMatch(track);
+    resetLyricsOffset();
     setLyrics(undefined);
     fetchLyricsForTrack(track).then(setLyrics);
+  }
+
+  function offsetSummary() {
+    if (lyricsOffset === 0) return "In sync";
+    const secs = Math.abs(lyricsOffset).toFixed(1);
+    return lyricsOffset > 0 ? `Delayed ${secs}s` : `Advanced ${secs}s`;
   }
 
   return (
@@ -115,6 +153,47 @@ export default function PlayerBar({
                   </button>
                 )}
               </div>
+
+              {candidates === null && lyrics && !lyrics.instrumental && lyrics.syncedLyrics && (
+                <div className="lyrics-offset" role="group" aria-label="Lyrics timing">
+                  <span className="lyrics-offset-group">
+                    <span className="lyrics-offset-label">Advance</span>
+                    {[1.5, 1, 0.5].map((step) => (
+                      <button
+                        key={`adv-${step}`}
+                        className="lyrics-offset-btn"
+                        onClick={() => adjustLyricsOffset(-step)}
+                        aria-label={`Advance lyrics ${step} seconds`}
+                        title="Highlight lines sooner"
+                      >
+                        {step}s
+                      </button>
+                    ))}
+                  </span>
+                  <span className="lyrics-offset-group">
+                    <span className="lyrics-offset-label">Delay</span>
+                    {[0.5, 1, 1.5].map((step) => (
+                      <button
+                        key={`del-${step}`}
+                        className="lyrics-offset-btn"
+                        onClick={() => adjustLyricsOffset(step)}
+                        aria-label={`Delay lyrics ${step} seconds`}
+                        title="Highlight lines later"
+                      >
+                        {step}s
+                      </button>
+                    ))}
+                  </span>
+                  <span className="lyrics-offset-status">
+                    {offsetSummary()}
+                    {lyricsOffset !== 0 && (
+                      <button className="link-btn" onClick={resetLyricsOffset}>
+                        Reset
+                      </button>
+                    )}
+                  </span>
+                </div>
+              )}
 
               {candidates !== null ? (
                 <div className="lyrics-candidates">
@@ -152,7 +231,7 @@ export default function PlayerBar({
                     <p className="lyrics-status">Instrumental — no lyrics.</p>
                   )}
                   {lyrics && !lyrics.instrumental && lyrics.syncedLyrics && (
-                    <SyncedLyrics lrc={lyrics.syncedLyrics} currentTime={currentTime} />
+                    <SyncedLyrics lrc={lyrics.syncedLyrics} currentTime={currentTime} offsetSec={lyricsOffset} />
                   )}
                   {lyrics && !lyrics.instrumental && !lyrics.syncedLyrics && lyrics.plainLyrics && (
                     <pre className="lyrics-plain">{lyrics.plainLyrics}</pre>

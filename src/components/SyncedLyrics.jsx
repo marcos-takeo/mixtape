@@ -1,15 +1,11 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { parseSyncedLyrics } from "../lib/lrcParser.js";
+import { parseSyncedLyrics, findActiveLineIndex } from "../lib/lrcParser.js";
 
-export default function SyncedLyrics({ lrc, currentTime }) {
+export default function SyncedLyrics({ lrc, currentTime, offsetSec = 0 }) {
   const lines = useMemo(() => parseSyncedLyrics(lrc), [lrc]);
   const activeRef = useRef(null);
 
-  let activeIndex = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].time <= currentTime) activeIndex = i;
-    else break;
-  }
+  const activeIndex = findActiveLineIndex(lines, currentTime, offsetSec);
 
   useEffect(() => {
     activeRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });

@@ -1,5 +1,12 @@
 import { resolveIsrc } from "./musicbrainz.js";
-import { getLyricsOverride, putLyricsOverride, deleteLyricsOverride } from "./db.js";
+import {
+  getLyricsOverride,
+  putLyricsOverride,
+  deleteLyricsOverride,
+  getLyricsOffset,
+  putLyricsOffset,
+  deleteLyricsOffset,
+} from "./db.js";
 
 const BASE = "https://lrclib.net/api";
 const cache = new Map(); // cache key -> result (or null for "confirmed no lyrics")
@@ -116,4 +123,14 @@ export async function applyManualLyricsMatch(track, candidate) {
 export async function clearManualLyricsMatch(track) {
   await deleteLyricsOverride(track.id);
   cache.delete(cacheKey(track));
+}
+
+/** This track's saved whole-song lyrics timing offset in seconds (0 if none). */
+export function loadLyricsOffset(track) {
+  return getLyricsOffset(track.id);
+}
+
+/** Saves the offset; zero means "no adjustment", so it just drops the record. */
+export function saveLyricsOffset(track, offsetSec) {
+  return offsetSec === 0 ? deleteLyricsOffset(track.id) : putLyricsOffset(track.id, offsetSec);
 }

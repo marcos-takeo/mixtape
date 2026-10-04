@@ -1,7 +1,7 @@
 {
   "name": "mixtape-player",
   "private": true,
-  "version": "1.10.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,6 +11,7 @@
   "dependencies": {
     "browser-id3-writer": "^6.4.0",
     "music-metadata": "^11.15.0",
+    "pg": "^8.23.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-window": "^2.3.1"

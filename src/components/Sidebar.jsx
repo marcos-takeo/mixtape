@@ -13,6 +13,7 @@ export default function Sidebar({
   disconnectedAccounts,
   onReconnectDrive,
   driveError,
+  syncStatus,
   onConnectDrive,
   onDisconnectDrive,
   onAddDriveTrack,
@@ -160,6 +161,14 @@ export default function Sidebar({
             </button>
           </div>
         ))}
+
+        {driveConnections.length > 0 && syncStatus && syncStatus !== "idle" && (
+          <p className={`sync-status sync-status-${syncStatus}`}>
+            {syncStatus === "syncing" && "Syncing playlists…"}
+            {syncStatus === "synced" && "Playlists synced"}
+            {syncStatus === "error" && "Playlist sync failed — will retry on next change"}
+          </p>
+        )}
 
         {driveError && <p className="error-text">{driveError}</p>}
 

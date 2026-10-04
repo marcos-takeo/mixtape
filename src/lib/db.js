@@ -149,6 +149,19 @@ export async function deletePlaylist(id) {
   });
 }
 
+// Replaces every local playlist with `playlists` in one transaction — used
+// when a sync pull finds playlists on the server and they should take over
+// as this device's set (see src/lib/sync.js / App.jsx).
+export async function replaceAllPlaylists(playlists) {
+  const { t, store } = await tx(STORE_PLAYLISTS, "readwrite");
+  store.clear();
+  for (const p of playlists) store.put(p);
+  return new Promise((resolve, reject) => {
+    t.oncomplete = () => resolve();
+    t.onerror = () => reject(t.error);
+  });
+}
+
 // --- Manual lyrics overrides ---
 // { trackId, ...raw LRCLIB result the user picked }
 

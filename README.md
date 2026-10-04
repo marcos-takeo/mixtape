@@ -278,6 +278,82 @@ is generic, so adding a real one later is a matter of registering a
 developer app with that service (same one-time setup as above) and
 implementing its connect/list/fetch calls; nothing else needs to change.
 
+## Sync (playlists across devices)
+
+Connecting a Google account (the same **Connect Google Drive** flow used
+for Drive files) also syncs your playlists across every device signed
+into that account. This is entirely optional — nothing is sent anywhere
+until an account is connected, and the app works exactly as it always
+has (pure local storage) without one.
+
+**What syncs:** playlist name, track order, pinned state. **What
+doesn't:** playlist artwork (it's a binary image; this is a plain JSON
+API), and anything in the auto-generated **Local files** playlist (see
+the caveat below). There's no merge step — the first device to connect
+after this feature exists seeds the server; every device after that
+simply takes on whatever is on the server. This app doesn't support
+editing the same playlist from two devices at the same moment — plain
+last-write-wins is what you get, which is the right tradeoff for one
+person's own playlists.
+
+**A real caveat worth knowing**: a playlist that mixes in local files
+(not Drive files) will show those specific tracks as unavailable on any
+other device — a local file's id is derived from that device's own
+filesystem info, so it simply doesn't exist as a file on a different
+device. This is the exact same "needs re-adding" state the app already
+shows when a local file's permission hasn't been re-granted — not a new
+failure mode, just the same one showing up for a different reason.
+Playlists built from Drive tracks sync perfectly, since a Drive file's
+id is the same everywhere.
+
+**Why connecting Drive is also how you "sign in":** rather than adding a
+second, separate sign-in flow just to get an identity token, the server
+verifies the exact same Google access token already obtained for Drive,
+directly with Google, on every request (`api/_utils/auth.js`). No new
+consent screen, no extra click.
+
+### Setting this up (required once, by you as the developer/deployer —
+see the note at the top of Google Drive setup for why this is a
+developer task, not something each visitor does)
+
+This needs a real database and a couple of serverless functions — things
+that can't live in a static site. The functions (`api/playlists.js`) are
+written for Vercel specifically; `db/schema.sql` is plain Postgres and
+works with Supabase, Neon, or any hosted Postgres.
+
+1. **Create a Supabase project.** supabase.com → New project → pick a
+   name, a database password (save it, you'll need it in step 3), and a
+   region. Wait for it to finish provisioning (a couple of minutes).
+2. **Run the schema.** In the Supabase dashboard: SQL Editor → New query
+   → paste the full contents of `db/schema.sql` → Run. This creates the
+   `users` and `playlists` tables; safe to re-run later (it won't error
+   or duplicate anything).
+3. **Get the connection string.** Project Settings → Database →
+   Connection string → URI. Copy it (it looks like
+   `postgresql://postgres:[YOUR-PASSWORD]@...:5432/postgres`) and
+   substitute in the real password from step 1 in place of
+   `[YOUR-PASSWORD]`. This whole string is `DATABASE_URL` in step 5.
+4. **Find your Google OAuth Client ID.** The same one from Google Drive
+   setup above (Google Cloud Console → APIs & Services → Credentials →
+   your OAuth 2.0 Client ID) — this is `GOOGLE_CLIENT_ID` in step 5. It's
+   what stops a token meant for some other app being replayed against
+   your server.
+5. **Set environment variables in Vercel.** Project → Settings →
+   Environment Variables, add both:
+   - `DATABASE_URL` — the full connection string from step 3
+   - `GOOGLE_CLIENT_ID` — the client ID from step 4
+6. **Deploy.** Vercel auto-detects anything under `api/` as serverless
+   functions — no extra config beyond `vercel.json` (already set up for
+   the CSP headers). Push to the branch Vercel deploys from, or run
+   `vercel deploy` / `vercel --prod` if you're using the CLI. The first
+   time anyone connects a Google account after this is live, the `users`
+   table gets a row automatically — there's no separate signup step.
+
+If sync ever looks stuck, the sidebar's **Syncing… / Playlists synced /
+Playlist sync failed** line under your connected account is the thing
+to check first; a failed push just quietly retries the next time
+anything changes.
+
 ## Library
 
 The table shows album art, **Title**, **Artist**, **Album**, a small

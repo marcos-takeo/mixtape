@@ -53,8 +53,10 @@ import {
   deleteLyricsOverride,
   clearAllLyricsOffsets,
   clearAllLyricsOverrides,
+  replaceAllPlaylists,
 } from "./lib/db.js";
 import { trackSearchScore } from "./lib/search.js";
+import { pullPlaylists, pushPlaylists } from "./lib/sync.js";
 import { resolveVoiceIntent } from "./lib/voiceCommands.js";
 import { nextCarRate } from "./lib/playbackSpeed.js";
 import { seekTarget } from "./lib/seek.js";
@@ -110,6 +112,14 @@ export default function App() {
   const [sortKey, setSortKey] = useState(null); // null | "title" | "artist"
   const [sortDir, setSortDir] = useState("asc");
   const [playlists, setPlaylists] = useState([]);
+  // Playlist sync across devices (optional — only active once a Google
+  // account is connected; see README's "Sync" section for the full
+  // picture). 'idle' before any account is connected, then
+  // 'syncing' -> 'synced' | 'error'. syncedAccountIdRef tracks which
+  // connection id the initial pull-or-seed handshake has run for, so it
+  // only runs once per sign-in, not on every token refresh.
+  const [syncStatus, setSyncStatus] = useState("idle");
+  const syncedAccountIdRef = useRef(null);
   const [activePlaylistId, setActivePlaylistId] = useState(null);
   const [activePage, setActivePage] = useState("library");
   const [visibleColumns, setVisibleColumns] = useState(() => loadColumnPrefs(null));
@@ -196,6 +206,66 @@ export default function App() {
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
+
+  // Playlist sync, step 1: the initial handshake for whichever Google
+  // account is primary (driveConnections[0]) — runs once per sign-in, not
+  // on every re-render. If the server already has playlists, they're what
+  // this device should show (replacing local ones); if the server is
+  // empty, this device's current playlists seed it. No account connected
+  // -> sync stays fully inactive, exactly like today's local-only app.
+  useEffect(() => {
+    const primary = driveConnections[0];
+    if (!primary) {
+      syncedAccountIdRef.current = null;
+      setSyncStatus("idle");
+      return;
+    }
+    if (syncedAccountIdRef.current === primary.id) return; // already handshaked this sign-in
+    syncedAccountIdRef.current = primary.id;
+
+    (async () => {
+      setSyncStatus("syncing");
+      try {
+        const serverPlaylists = await pullPlaylists(primary.accessToken);
+        if (serverPlaylists.length > 0) {
+          const local = playlists.find((p) => p.id === LOCAL_FILES_PLAYLIST_ID);
+          const merged = local ? [...serverPlaylists, local] : serverPlaylists;
+          await replaceAllPlaylists(merged);
+          setPlaylists(merged);
+        } else {
+          const toSeed = playlists.filter((p) => p.id !== LOCAL_FILES_PLAYLIST_ID);
+          if (toSeed.length > 0) await pushPlaylists(primary.accessToken, toSeed);
+        }
+        setSyncStatus("synced");
+      } catch (err) {
+        console.warn("Playlist sync (initial) failed:", err);
+        setSyncStatus("error");
+      }
+    })();
+    // Deliberately only re-runs when the primary account id changes, not on
+    // every `playlists` edit — this effect is the one-time handshake only;
+    // the debounced push effect below is what keeps ongoing edits in sync.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [driveConnections]);
+
+  // Playlist sync, step 2: once the handshake above has run, push any
+  // further local edits up after a short debounce (so a drag-reorder or a
+  // burst of edits sends one request, not one per keystroke/tick).
+  useEffect(() => {
+    const primary = driveConnections[0];
+    if (!primary || syncedAccountIdRef.current !== primary.id) return;
+    const t = setTimeout(() => {
+      const toPush = playlists.filter((p) => p.id !== LOCAL_FILES_PLAYLIST_ID);
+      pushPlaylists(primary.accessToken, toPush)
+        .then(() => setSyncStatus("synced"))
+        .catch((err) => {
+          console.warn("Playlist sync (push) failed:", err);
+          setSyncStatus("error");
+        });
+    }, 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playlists]);
 
   // Speed is per track: every new track starts at 1x.
   useEffect(() => {
@@ -1495,6 +1565,7 @@ export default function App() {
           (email) => !driveConnections.some((c) => c.label === email)
         )}
         onReconnectDrive={(email) => handleConnectDrive(email)}
+        syncStatus={syncStatus}
         driveError={driveError}
         onConnectDrive={handleConnectDrive}
         onDisconnectDrive={handleDisconnectDrive}

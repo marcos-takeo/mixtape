@@ -356,6 +356,20 @@ button {
   font-size: 11.5px;
 }
 
+.sync-status {
+  font-size: 11.5px;
+  margin-top: 6px;
+  color: var(--text-muted);
+}
+
+.sync-status-synced {
+  color: var(--accent-secondary);
+}
+
+.sync-status-error {
+  color: var(--danger);
+}
+
 .error-text {
   color: var(--danger);
   font-size: 11.5px;

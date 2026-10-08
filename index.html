@@ -13,6 +13,15 @@
       (this meta tag can't set frame-ancestors — the README explains why
       and gives host config files that can).
 
+      A gotcha worth remembering: connect-src is enforced against where a
+      request actually ENDS UP, not just the URL it started at — Cover Art
+      Archive's own JSON metadata lives at coverartarchive.org, but the
+      actual image is served via a redirect to an archive.org CDN
+      subdomain (a different host, picked unpredictably per image, hence
+      the wildcard https://*.archive.org below). Any host that redirects
+      elsewhere needs its real destination allowed too, not just the one
+      you call directly.
+
       style-src allows 'unsafe-inline': this app sets a lot of genuinely
       dynamic inline style="" attributes (drag position, progress bars,
       per-playlist column widths) that can't be pinned to a static hash.
@@ -29,7 +38,7 @@
         font-src 'self' https://fonts.gstatic.com;
         img-src 'self' blob: data:;
         media-src 'self' blob:;
-        connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com https://musicbrainz.org https://coverartarchive.org https://lrclib.net;
+        connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com https://musicbrainz.org https://coverartarchive.org https://archive.org https://*.archive.org https://lrclib.net;
         frame-src https://accounts.google.com;
         worker-src 'self';
         manifest-src 'self';

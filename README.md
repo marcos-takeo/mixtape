@@ -339,9 +339,22 @@ works with Supabase, Neon, or any hosted Postgres.
    what stops a token meant for some other app being replayed against
    your server.
 5. **Set environment variables in Vercel.** Project → Settings →
-   Environment Variables, add both:
+   Environment Variables, add all three (check Production, Preview, *and*
+   Development for each — narrowing this to Production-only means a
+   branch's preview deployment won't have them):
    - `DATABASE_URL` — the full connection string from step 3
    - `GOOGLE_CLIENT_ID` — the client ID from step 4
+   - `VITE_GOOGLE_CLIENT_ID` — the *same* client ID from step 4, again,
+     under this second name. This one isn't new to sync — it's what
+     "Connect Google Drive" has always needed (see Google Drive setup,
+     above) — but it's easy to add the server-side one above and forget
+     this one exists too, since the names look almost identical. The
+     giveaway if you do: the app says "Google Drive isn't configured for
+     this deployment" even though `GOOGLE_CLIENT_ID` is set. Unlike the
+     other two, this one is baked into the static files at *build* time,
+     not read at request time — if you add or change it after a deploy
+     already exists, that deploy needs a fresh build (Deployments → the
+     latest one → Redeploy) before it takes effect, not just a save.
 6. **Deploy.** Vercel auto-detects anything under `api/` as serverless
    functions — no extra config beyond `vercel.json` (already set up for
    the CSP headers). Push to the branch Vercel deploys from, or run
@@ -645,13 +658,23 @@ app actually uses: itself (`'self'`), Google's sign-in script and API
 (`accounts.google.com`, `www.googleapis.com`, `oauth2.googleapis.com`),
 Google Fonts (`fonts.googleapis.com`/`fonts.gstatic.com`), and the metadata
 providers used for tag/artwork/lyric lookups (`musicbrainz.org`,
-`coverartarchive.org`, `lrclib.net`). Everything else — arbitrary scripts,
-frames, connections — is refused by default. `object-src 'none'` and a
-locked-down `base-uri`/`form-action` close off some of the classic ways an
-injected payload would otherwise escalate.
+`coverartarchive.org`, `archive.org`/`*.archive.org`, `lrclib.net`).
+Everything else — arbitrary scripts, frames, connections — is refused by
+default. `object-src 'none'` and a locked-down `base-uri`/`form-action`
+close off some of the classic ways an injected payload would otherwise
+escalate.
 
-Two things worth knowing if you touch this later:
+Three things worth knowing if you touch this later:
 
+- **`connect-src` is enforced against redirect destinations, not just the
+  URL you call.** Cover Art Archive's own JSON metadata lives at
+  `coverartarchive.org`, but the actual cover image is served via a
+  redirect to an `archive.org` CDN subdomain — a different host, picked
+  unpredictably per image, hence the wildcard `https://*.archive.org`
+  rather than a fixed list. Any host you add later that redirects
+  elsewhere needs its real destination allowed too, or the request fails
+  as a plain, hard-to-place "Failed to fetch" with nothing obviously
+  wrong in the Network tab.
 - **`style-src` allows `'unsafe-inline'`.** This app sets a lot of
   genuinely dynamic inline `style=""` attributes in React (drag position
   for the car-mode button, seek-bar/volume fill, per-playlist column

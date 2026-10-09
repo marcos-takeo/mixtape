@@ -67,7 +67,7 @@ export default function QueueModal({ tracks, playQueue, onRemoveFromQueue, onReo
                         ↓
                       </button>
                       <button
-                        className="row-action-btn"
+                        className="row-action-btn row-action-btn-danger"
                         title="Remove from queue"
                         aria-label="Remove from queue"
                         onClick={() => onRemoveFromQueue(item.id)}
@@ -78,7 +78,7 @@ export default function QueueModal({ tracks, playQueue, onRemoveFromQueue, onReo
                   );
                 })}
               </ul>
-              <button className="link-btn" onClick={onClearQueue}>
+              <button className="link-btn link-btn-danger" onClick={onClearQueue}>
                 Clear queue
               </button>
             </>

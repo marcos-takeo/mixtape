@@ -22,8 +22,8 @@ import {
   isSyncDue,
   markSynced,
   waitForGoogleIdentity,
-  clearFolderNameCache,
-  resolveDriveFilePath,
+  getTokenExpiry,
+  isTokenStale,
 } from "./lib/googleDrive.js";
 import ColumnSettings from "./components/ColumnSettings.jsx";
 import { loadColumnPrefs, saveColumnPrefs } from "./lib/columnPrefs.js";
@@ -120,6 +120,13 @@ export default function App() {
   // only runs once per sign-in, not on every token refresh.
   const [syncStatus, setSyncStatus] = useState("idle");
   const syncedAccountIdRef = useRef(null);
+  // Google access tokens expire after ~1 hour. These keep the latest token
+  // for each account reachable from callbacks (which may hold a stale
+  // `driveConnections` from an earlier render), and make sure only one
+  // renewal per account is in flight at a time.
+  const connectionsRef = useRef([]);
+  const tokenRefreshPromisesRef = useRef(new Map());
+  const tokenRefreshTimersRef = useRef(new Map());
   const [activePlaylistId, setActivePlaylistId] = useState(null);
   const [activePage, setActivePage] = useState("library");
   const [visibleColumns, setVisibleColumns] = useState(() => loadColumnPrefs(null));
@@ -248,6 +255,108 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [driveConnections]);
 
+  // --- Google access-token renewal ---
+  // Tokens last about an hour. Without renewal, the first song that needed a
+  // download after that hour failed with "(401) Try reconnecting this account".
+  // Three layers now prevent that: (1) a timer renews each token shortly
+  // before it expires, (2) a download renews it first if it's about to
+  // expire, (3) a download that still gets a 401 renews and retries once.
+  useEffect(() => {
+    connectionsRef.current = driveConnections;
+  }, [driveConnections]);
+
+  function refreshConnectionToken(connectionId) {
+    const inFlight = tokenRefreshPromisesRef.current.get(connectionId);
+    if (inFlight) return inFlight;
+    const conn = connectionsRef.current.find((c) => c.id === connectionId);
+    if (!conn) return Promise.resolve(null);
+
+    const promise = (async () => {
+      try {
+        const token = await requestGoogleAccessToken({
+          silent: true,
+          hint: conn.label,
+          forceFreshClient: true,
+        });
+        if (!token) return null;
+        const apply = (list) =>
+          list.map((c) => (c.id === connectionId ? { ...c, accessToken: token } : c));
+        connectionsRef.current = apply(connectionsRef.current);
+        setDriveConnections(apply);
+        return token;
+      } catch (err) {
+        console.warn("Google token renewal failed for", conn.label, err);
+        return null;
+      } finally {
+        tokenRefreshPromisesRef.current.delete(connectionId);
+      }
+    })();
+    tokenRefreshPromisesRef.current.set(connectionId, promise);
+    return promise;
+  }
+
+  // The best token currently available for an account: renewed first if the
+  // current one is expired or about to be.
+  async function getValidToken(connectionId) {
+    const conn = connectionsRef.current.find((c) => c.id === connectionId);
+    if (!conn) return null;
+    if (!isTokenStale(conn.accessToken, 2 * 60 * 1000)) return conn.accessToken;
+    return (await refreshConnectionToken(connectionId)) || conn.accessToken;
+  }
+
+  // Runs a Drive call with a valid token; if Google still answers 401, renews
+  // the token and tries once more before giving up.
+  async function withDriveToken(connectionId, fn) {
+    const token = await getValidToken(connectionId);
+    try {
+      return await fn(token);
+    } catch (err) {
+      if (err?.status !== 401) throw err;
+      const fresh = await refreshConnectionToken(connectionId);
+      if (!fresh) throw err;
+      return fn(fresh);
+    }
+  }
+
+  // Background renewal: schedule each account's renewal ~5 minutes before its
+  // token expires, and re-check when the app comes back to the foreground
+  // (timers are paused or throttled while it's hidden).
+  useEffect(() => {
+    const timers = tokenRefreshTimersRef.current;
+    for (const c of driveConnections) {
+      const prev = timers.get(c.id);
+      if (prev?.token === c.accessToken) continue;
+      if (prev) clearTimeout(prev.timer);
+      const expiresAt = getTokenExpiry(c.accessToken);
+      if (!expiresAt) {
+        timers.delete(c.id);
+        continue;
+      }
+      const delay = Math.max(10_000, expiresAt - Date.now() - 5 * 60 * 1000);
+      const timer = setTimeout(() => refreshConnectionToken(c.id), delay);
+      timers.set(c.id, { token: c.accessToken, timer });
+    }
+    for (const [id, entry] of [...timers]) {
+      if (!driveConnections.some((c) => c.id === id)) {
+        clearTimeout(entry.timer);
+        timers.delete(id);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [driveConnections]);
+
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState !== "visible") return;
+      for (const c of connectionsRef.current) {
+        if (isTokenStale(c.accessToken, 5 * 60 * 1000)) refreshConnectionToken(c.id);
+      }
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Playlist sync, step 2: once the handshake above has run, push any
   // further local edits up after a short debounce (so a drag-reorder or a
   // burst of edits sends one request, not one per keystroke/tick).
@@ -256,7 +365,8 @@ export default function App() {
     if (!primary || syncedAccountIdRef.current !== primary.id) return;
     const t = setTimeout(() => {
       const toPush = playlists.filter((p) => p.id !== LOCAL_FILES_PLAYLIST_ID);
-      pushPlaylists(primary.accessToken, toPush)
+      getValidToken(primary.id)
+        .then((token) => pushPlaylists(token || primary.accessToken, toPush))
         .then(() => setSyncStatus("synced"))
         .catch((err) => {
           console.warn("Playlist sync (push) failed:", err);
@@ -666,10 +776,6 @@ export default function App() {
   async function syncDriveAccountLibrary(connection) {
     const files = await listAllAudioFiles(connection.accessToken);
     await Promise.all(files.map((f) => addDriveTrackAndTag(f, connection)));
-    // Folder names/locations may have changed since the last sync — drop
-    // the cached folder-name lookups used by the Edit Tags "file path"
-    // display so the next path resolution reflects any renames/moves.
-    clearFolderNameCache();
 
     const playlistId = `plg:${connection.id}`;
     const trackIds = files.map((f) => `drive:${f.id}`);
@@ -699,7 +805,9 @@ export default function App() {
       );
     }
 
-    const blob = await fetchDriveFileBlob(connection.accessToken, track.driveId);
+    const blob = await withDriveToken(connection.id, (token) =>
+      fetchDriveFileBlob(token, track.driveId)
+    );
     const tags = await readTags(blob, track.title);
     const objectUrl = URL.createObjectURL(blob);
     const updated = { ...track, ...tags, objectUrl, tagsLoaded: true };
@@ -804,7 +912,9 @@ export default function App() {
       // Editing needs the full file (unlike playback-prep, tag-writing has
       // to preserve every audio byte), so always pull the complete blob
       // here even if we only ever read a partial range for its tags.
-      const fullBlob = await fetchDriveFileBlob(connection.accessToken, track.driveId);
+      const fullBlob = await withDriveToken(connection.id, (token) =>
+        fetchDriveFileBlob(token, track.driveId)
+      );
       const newAudioBlob = await writeId3Tags(fullBlob, {
         title: fields.title,
         artist: fields.artist,
@@ -814,7 +924,9 @@ export default function App() {
         pictureBlob,
       });
 
-      await updateDriveFileContent(connection.accessToken, track.driveId, newAudioBlob);
+      await withDriveToken(connection.id, (token) =>
+        updateDriveFileContent(token, track.driveId, newAudioBlob)
+      );
       const objectUrl = URL.createObjectURL(newAudioBlob);
 
       setTracks((prev) =>
@@ -1147,6 +1259,9 @@ export default function App() {
         track = await ensureDriveTrackReady(track);
       } catch (err) {
         setNotice(err.message);
+        // Token renewal didn't work (e.g. Google needs the user to click) —
+        // offer the one-click Reconnect button, which retries this track.
+        if (err?.status === 401 || err?.status === 403) setPendingReconnectTrackId(track.id);
         return;
       }
     }
@@ -1746,8 +1861,14 @@ export default function App() {
             t.source === "drive"
               ? driveConnections.some((c) => c.id === record?.connectionId)
               : !!record?.fileHandle;
+          // Account email only (connection ids look like "google:name@gmail.com"),
+          // so it still shows when the account currently needs a reconnect.
           const driveConnection =
             t.source === "drive" ? driveConnections.find((c) => c.id === record?.connectionId) : null;
+          const driveAccount =
+            t.source === "drive"
+              ? driveConnection?.label || String(record?.connectionId || "").replace(/^google:/, "")
+              : "";
           return (
             <EditTagsModal
               track={t}
@@ -1755,11 +1876,7 @@ export default function App() {
               onClose={() => setEditingTrackId(null)}
               onSave={(fields) => handleSaveTags(t, fields)}
               onDownloadArtwork={handleDownloadArtwork}
-              onResolveDrivePath={
-                driveConnection
-                  ? () => resolveDriveFilePath(driveConnection.accessToken, t.driveId)
-                  : null
-              }
+              driveAccount={driveAccount}
             />
           );
         })()}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 
 export default function EditTagsModal({
   track,
@@ -6,7 +6,7 @@ export default function EditTagsModal({
   onClose,
   onSave,
   onDownloadArtwork,
-  onResolveDrivePath,
+  driveAccount,
 }) {
   const [title, setTitle] = useState(track.title || "");
   const [artist, setArtist] = useState(track.artist || "");
@@ -17,35 +17,6 @@ export default function EditTagsModal({
   const [artworkLoading, setArtworkLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-
-  // Resolved fresh every time this modal opens for a Drive track (never
-  // cached), so a file that's been moved always shows its current
-  // location — see resolveDriveFilePath in lib/googleDrive.js for how the
-  // folder-name lookups it depends on are cached/invalidated.
-  const [drivePath, setDrivePath] = useState(null);
-  const [drivePathLoading, setDrivePathLoading] = useState(!!onResolveDrivePath);
-
-  useEffect(() => {
-    if (!onResolveDrivePath) return;
-    let cancelled = false;
-    setDrivePathLoading(true);
-    onResolveDrivePath()
-      .then((path) => {
-        if (!cancelled) setDrivePath(path);
-      })
-      .catch(() => {
-        if (!cancelled) setDrivePath(null);
-      })
-      .finally(() => {
-        if (!cancelled) setDrivePathLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // Only re-run if the modal is opened for a different resolver (i.e. a
-    // different track) — onResolveDrivePath is recreated per-track in App.jsx.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onResolveDrivePath]);
 
   const previewUrl = newArt
     ? URL.createObjectURL(newArt)
@@ -206,12 +177,10 @@ export default function EditTagsModal({
         {info && <p className="notice-text">{info}</p>}
         {error && <p className="error-text">{error}</p>}
 
-        {track.fileName && (
-          <p className="editor-file-path" title={drivePath || track.fileName}>
+        {(track.source === "drive" ? driveAccount : track.fileName) && (
+          <p className="editor-file-path" title={track.source === "drive" ? driveAccount : track.fileName}>
             {track.source === "drive"
-              ? drivePathLoading
-                ? "Google Drive: locating file…"
-                : `Google Drive: ${drivePath || track.fileName}`
+              ? `Google Drive account: ${driveAccount}`
               : `File: ${track.fileName}`}
           </p>
         )}

@@ -112,7 +112,7 @@ export default function TrackOptionsModal({
                       ✎
                     </button>
                     <button
-                      className="row-action-btn"
+                      className="row-action-btn row-action-btn-danger"
                       title="Delete bookmark"
                       aria-label="Delete bookmark"
                       onClick={() => onDeleteBookmark(b.id)}

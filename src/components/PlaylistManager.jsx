@@ -262,7 +262,7 @@ export default function PlaylistManager({
                     <div className="playlist-manager-actions">
                       {!special && <>
                         <button className="row-action-btn" title="Edit playlist" onClick={() => setEditing(playlist)}>✎</button>
-                        <button className="row-action-btn" title="Delete playlist" aria-label={`Delete playlist ${playlist.name}`} onClick={() => window.confirm(`Delete playlist "${playlist.name}"? This won't delete your tracks.`) && onDeletePlaylist(playlist.id)}><TrashIcon width={14} height={14} /></button>
+                        <button className="row-action-btn row-action-btn-danger" title="Delete playlist" aria-label={`Delete playlist ${playlist.name}`} onClick={() => window.confirm(`Delete playlist "${playlist.name}"? This won't delete your tracks.`) && onDeletePlaylist(playlist.id)}><TrashIcon width={14} height={14} /></button>
                         <button className={`row-action-btn ${playlist.pinned ? "active-action" : ""}`} title={playlist.pinned ? "Unpin playlist" : "Pin playlist to top"} onClick={() => togglePin(playlist)}>{playlist.pinned ? "★" : "☆"}</button>
                       </>}
                     </div>

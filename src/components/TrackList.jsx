@@ -204,7 +204,7 @@ function Row({
           </button>
         ) : (
           <button
-            className="row-action-btn"
+            className="row-action-btn row-action-btn-danger"
             title="Remove from library"
             aria-label="Remove from library"
             onClick={() => {

@@ -675,6 +675,11 @@ button {
 }
 
 .row-action-btn:hover {
+  color: var(--accent);
+}
+
+/* Destructive actions (remove from library, delete playlist/bookmark, disconnect) */
+.row-action-btn.row-action-btn-danger:hover {
   color: var(--danger);
 }
 

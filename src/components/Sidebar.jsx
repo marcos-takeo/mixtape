@@ -136,7 +136,7 @@ export default function Sidebar({
               <span className="cloud-account-label" title={conn.label}>
                 {conn.label}
               </span>
-              <button className="row-action-btn" title="Disconnect" onClick={() => handleDisconnect(conn)}>
+              <button className="row-action-btn row-action-btn-danger" title="Disconnect" onClick={() => handleDisconnect(conn)}>
                 ×
               </button>
             </div>

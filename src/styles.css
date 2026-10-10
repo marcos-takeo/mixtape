@@ -1,3 +1,28 @@
+/* MADE Tommy Soft (self-hosted). Weights used in the app: 400, 500, 600/700. */
+@font-face {
+  font-family: "MADE Tommy Soft";
+  src: url("./assets/fonts/MadeTommySoft-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "MADE Tommy Soft";
+  src: url("./assets/fonts/MadeTommySoft-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "MADE Tommy Soft";
+  src: url("./assets/fonts/MadeTommySoft-Bold.woff2") format("woff2");
+  font-weight: 600 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --bg: #000000;
   --bg-elevated: #000000;
@@ -8,8 +33,8 @@
   --text: #f5f7f0;
   --text-muted: #8b9388;
   --divider: #22261c;
-  --font-display: "Fraunces", Georgia, serif;
-  --font-ui: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --font-display: "MADE Tommy Soft", "Helvetica Neue", Arial, sans-serif;
+  --font-ui: "MADE Tommy Soft", "Helvetica Neue", Arial, sans-serif;
 }
 
 * {

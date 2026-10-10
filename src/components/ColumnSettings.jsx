@@ -2,9 +2,14 @@ import React, { useEffect, useRef, useState } from "react";
 import { ColumnsIcon } from "./Icons.jsx";
 import { DATA_COLUMNS, ACTION_COLUMNS, COLUMN_LABELS } from "../lib/columnPrefs.js";
 
-export default function ColumnSettings({ visibleColumns, onToggle }) {
+export default function ColumnSettings({ visibleColumns, onToggle, disabled = false }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
+
+  // The column choices only apply to the list view.
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
 
   useEffect(() => {
     if (!open) return;
@@ -42,8 +47,9 @@ export default function ColumnSettings({ visibleColumns, onToggle }) {
       <button
         className="columns-settings-btn"
         onClick={() => setOpen((v) => !v)}
-        title="Choose columns"
+        title={disabled ? "Columns apply to the list view" : "Choose columns"}
         aria-label="Choose columns"
+        disabled={disabled}
         aria-expanded={open}
       >
         <ColumnsIcon width={18} height={18} />

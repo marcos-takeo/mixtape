@@ -268,3 +268,27 @@ export function QueueIcon(props) {
     </svg>
   );
 }
+
+export function ViewListIcon(props) {
+  return (
+    <svg {...base} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M8 6h13" />
+      <path d="M8 12h13" />
+      <path d="M8 18h13" />
+      <path d="M3.5 6h.01" />
+      <path d="M3.5 12h.01" />
+      <path d="M3.5 18h.01" />
+    </svg>
+  );
+}
+
+export function ViewGridIcon(props) {
+  return (
+    <svg {...base} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <rect x="3" y="3" width="7.5" height="7.5" rx="1.5" />
+      <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5" />
+      <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5" />
+      <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" />
+    </svg>
+  );
+}

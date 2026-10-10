@@ -26,6 +26,9 @@ import {
   isTokenStale,
 } from "./lib/googleDrive.js";
 import ColumnSettings from "./components/ColumnSettings.jsx";
+import AlbumGrid from "./components/AlbumGrid.jsx";
+import ViewToggle from "./components/ViewToggle.jsx";
+import { VIEW_ALBUMS, loadViewMode, saveViewMode } from "./lib/viewPrefs.js";
 import { loadColumnPrefs, saveColumnPrefs } from "./lib/columnPrefs.js";
 import {
   tryGetFileSilently,
@@ -130,6 +133,7 @@ export default function App() {
   const [activePlaylistId, setActivePlaylistId] = useState(null);
   const [activePage, setActivePage] = useState("library");
   const [visibleColumns, setVisibleColumns] = useState(() => loadColumnPrefs(null));
+  const [viewMode, setViewMode] = useState(() => loadViewMode(null)); // "list" | "albums"
   const [editingTrackId, setEditingTrackId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 220);
@@ -431,7 +435,13 @@ export default function App() {
   // Library/all-tracks view), so reload it whenever the active view changes.
   useEffect(() => {
     setVisibleColumns(loadColumnPrefs(activePlaylistId));
+    setViewMode(loadViewMode(activePlaylistId));
   }, [activePlaylistId]);
+
+  function handleChangeViewMode(mode) {
+    setViewMode(mode);
+    saveViewMode(activePlaylistId, mode);
+  }
 
   function handleToggleColumn(col) {
     setVisibleColumns((prev) => {
@@ -1730,7 +1740,14 @@ export default function App() {
               <h1>{activePage === "playlists" ? "Playlists" : activePlaylistId ? playlists.find((p) => p.id === activePlaylistId)?.name : "All tracks"}</h1>
             </div>
             {activePage === "library" && (
-              <ColumnSettings visibleColumns={visibleColumns} onToggle={handleToggleColumn} />
+              <div className="library-title-actions">
+                <ViewToggle mode={viewMode} onChange={handleChangeViewMode} />
+                <ColumnSettings
+                  visibleColumns={visibleColumns}
+                  onToggle={handleToggleColumn}
+                  disabled={viewMode === VIEW_ALBUMS}
+                />
+              </div>
             )}
           </div>
           {activePage === "library" ? (
@@ -1782,6 +1799,8 @@ export default function App() {
               onReorderPlaylists={handleSetPlaylistOrder}
               onOpenPlaylist={navigateToLibrary}
             />
+          ) : viewMode === VIEW_ALBUMS ? (
+            <AlbumGrid ref={trackListRef} tracks={queue} currentId={playingTrack?.id} onPlay={playIndexInQueue} />
           ) : (
           <TrackList
             ref={trackListRef}

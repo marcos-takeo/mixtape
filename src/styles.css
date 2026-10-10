@@ -2176,7 +2176,7 @@ button.playlist-manager-name:hover {
 }
 
 .car-row-modes {
-  gap: calc(var(--car-big) * 0.3);
+  gap: calc(var(--car-big) * 0.14); /* four buttons: shuffle, repeat, speed, language */
 }
 
 .car-speed-label {
@@ -2357,6 +2357,13 @@ button.playlist-manager-name:hover {
 
 .car-btn-pl {
   --size: clamp(64px, 17vw, 120px);
+}
+
+.car-pl-sub {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 0.6em;
 }
 
 /* Landscape phones: put every control on one (wrapping) row. */

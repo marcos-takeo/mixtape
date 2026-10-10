@@ -88,7 +88,7 @@ function normalizeQuery(query) {
  * (see normalizeForSearch). Higher is better.
  * Returns -Infinity when the match is too weak to count at all.
  */
-export function fuzzyScoreNormalized(q, t) {
+export function fuzzyScoreNormalized(q, t, minSimilarity = 0.78) {
   if (!q) return 0;
   if (!t) return -Infinity;
 
@@ -122,7 +122,7 @@ export function fuzzyScoreNormalized(q, t) {
   const maxLen = Math.max(q.length, windowSize);
   const similarity = 1 - best / maxLen; // 0..1
   // A high bar — only close typos/near-misses count, not "shares some letters".
-  if (similarity < 0.78) return -Infinity;
+  if (similarity < minSimilarity) return -Infinity;
   return similarity * 500; // below any substring match tier
 }
 

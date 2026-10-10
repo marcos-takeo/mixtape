@@ -15,15 +15,25 @@ import {
 import Marquee from "./Marquee.jsx";
 import { formatRate } from "../lib/playbackSpeed.js";
 import { ALL_TRACKS_ID, getOrderedPlaylists } from "../lib/playlistOrder.js";
-import { getRecognitionLang, isOnDeviceReady, isSpeechSupported, startListening, warmUpOnDevice } from "../lib/speech.js";
+import {
+  VOICE_LANGS,
+  getRecognitionLang,
+  isOnDeviceReady,
+  isSpeechSupported,
+  setRecognitionLang,
+  startListening,
+  warmUpOnDevice,
+} from "../lib/speech.js";
 
 /**
  * Full-screen "car mode": a handful of very large buttons so the driver can
  * control playback with a glance and a single tap.
  *
- * Two screens live inside this overlay:
- *   - "main":      transport controls, playlists, voice search
- *   - "playlists": big list of playlists with Play / Shuffle only
+ * Three screens live inside this overlay:
+ *   - "main":       transport controls, playlists, voice search
+ *   - "playlists":  big list of playlists with Play / Shuffle only
+ *   - "candidates": "Did you mean…?" — the best guesses when a voice search
+ *                   only found approximate matches
  */
 export default function CarMode({
   track,
@@ -44,17 +54,20 @@ export default function CarMode({
   onVoiceStart,
   onVoiceResult,
   onVoiceEnd,
+  onPickVoiceTrack,
   getVoicePhrases,
   onClose,
 }) {
-  const [view, setView] = useState("main"); // "main" | "playlists"
+  const [view, setView] = useState("main"); // "main" | "playlists" | "candidates"
+  const [candidates, setCandidates] = useState([]); // tracks offered on the "candidates" screen
   const [message, setMessage] = useState(""); // outcome of the last voice command / hint
   const [listening, setListening] = useState(false);
   const [heardText, setHeardText] = useState(""); // live transcript while listening
   const rootRef = useRef(null);
   const messageTimerRef = useRef(null);
   const listenerRef = useRef(null);
-  const voiceLang = useMemo(getRecognitionLang, []);
+  const [voiceLang, setVoiceLang] = useState(getRecognitionLang);
+  const voiceLangInfo = VOICE_LANGS.find((l) => l.code === voiceLang) || VOICE_LANGS[0];
 
   // Latest callbacks, so a listening session started earlier still acts on
   // fresh app state when the result arrives a few seconds later.
@@ -68,7 +81,7 @@ export default function CarMode({
   useEffect(() => {
     function onKey(e) {
       if (e.key !== "Escape") return;
-      if (view === "playlists") setView("main");
+      if (view !== "main") setView("main");
       else onClose();
     }
     window.addEventListener("keydown", onKey);
@@ -124,7 +137,15 @@ export default function CarMode({
       onInterim: setHeardText,
       onResult: (alternatives) => {
         setHeardText("");
-        flashMessage(callbacksRef.current.onVoiceResult?.(alternatives) || "");
+        const outcome = callbacksRef.current.onVoiceResult?.(alternatives);
+        if (outcome && typeof outcome === "object") {
+          // Only approximate matches: let the driver pick.
+          setCandidates(outcome.candidates || []);
+          setView("candidates");
+          flashMessage(outcome.message || "", 8000);
+        } else {
+          flashMessage(outcome || "");
+        }
       },
       onError: (code) => flashMessage(voiceErrorMessage(code)),
       onEnd: () => {
@@ -139,9 +160,62 @@ export default function CarMode({
     warmUpOnDevice(voiceLang);
   }
 
+  function toggleVoiceLang() {
+    const next = VOICE_LANGS[(VOICE_LANGS.findIndex((l) => l.code === voiceLang) + 1) % VOICE_LANGS.length];
+    listenerRef.current?.abort(); // a session in progress was started in the old language
+    setRecognitionLang(next.code);
+    setVoiceLang(next.code);
+    flashMessage(`Voice language: ${next.label}`, 3500);
+  }
+
+  function pickCandidate(track) {
+    onPickVoiceTrack?.(track);
+    setCandidates([]);
+    setView("main");
+  }
+
   function choosePlaylist(playlist, shuffleOn) {
     onPlayPlaylist(playlist.id, shuffleOn);
     setView("main");
+  }
+
+  if (view === "candidates") {
+    return (
+      <div
+        ref={rootRef}
+        tabIndex={-1}
+        className="car-mode car-mode-playlists"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Did you mean"
+      >
+        <div className="car-pl-header">
+          <h1 className="car-pl-title">Did you mean…?</h1>
+          <button className="car-close" onClick={() => setView("main")} aria-label="Close suggestions">
+            <CloseIcon strokeWidth="3.4" />
+          </button>
+        </div>
+        <div className="car-pl-scroll">
+          <ul className="car-pl-list">
+            {candidates.map((t) => (
+              <li key={t.id} className="car-pl-row">
+                <span className="car-pl-name">
+                  {t.title}
+                  {t.artist ? <span className="car-pl-sub">{t.artist}</span> : null}
+                </span>
+                <button
+                  className="car-btn car-btn-accent car-btn-pl"
+                  aria-label={`Play ${t.title}${t.artist ? ` by ${t.artist}` : ""}`}
+                  onClick={() => pickCandidate(t)}
+                >
+                  <PlayIcon />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    );
   }
 
   if (view === "playlists") {
@@ -276,6 +350,13 @@ export default function CarMode({
             aria-pressed={playbackRate !== 1}
           >
             <span className="car-speed-label">{formatRate(playbackRate)}</span>
+          </button>
+          <button
+            className="car-btn car-btn-light car-btn-medium"
+            onClick={toggleVoiceLang}
+            aria-label={`Voice language: ${voiceLangInfo.label} — tap to change`}
+          >
+            <span className="car-speed-label">{voiceLangInfo.short}</span>
           </button>
         </div>
       </div>

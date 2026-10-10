@@ -1558,7 +1558,32 @@ export default function App() {
     return out.slice(0, 300);
   }
 
-  /** Acts on a recognition result. Returns the message to show the driver. */
+  // Starts playing the best voice-search match (or a random one when shuffling)
+  // and returns the track that was started.
+  function startVoiceTrack(matches, query, shuffleOn) {
+    let first = matches[0];
+    if (shuffleOn) {
+      const pool = matches.length > 1 ? matches.filter((t) => t.id !== currentTrackId) : matches;
+      first = pool[Math.floor(Math.random() * pool.length)];
+      setShuffle(true);
+    }
+    shuffleHistoryRef.current = [];
+    setActivePage("library");
+    setActivePlaylistId(null);
+    setSortKey(null);
+    setSortDir("asc");
+    // Show the results in the library (so Next/Previous walk through them) —
+    // but only when the library's own search would also find this song;
+    // otherwise (e.g. "<title> by <artist>") play it within the whole library.
+    setSearchQuery(query && trackSearchScore(query, first) > -Infinity ? query : "");
+    if (first.id === currentTrackId) handleSeek(0);
+    playById(first.id);
+    voiceResumeRef.current = false;
+    return first;
+  }
+
+  /** Acts on a recognition result. Returns the message to show the driver
+   *  (or { message, candidates } when the driver should pick a song). */
   function handleVoiceResult(alternatives) {
     const intent = resolveVoiceIntent(alternatives, { tracks, playlists });
     const describe = (t) => `“${t.title}”${t.artist ? ` — ${t.artist}` : ""}`;
@@ -1608,25 +1633,15 @@ export default function App() {
       }
 
       case "tracks": {
-        const { matches, query, shuffle: shuffleOn } = intent;
-        let first = matches[0];
-        if (shuffleOn) {
-          const pool = matches.length > 1 ? matches.filter((t) => t.id !== currentTrackId) : matches;
-          first = pool[Math.floor(Math.random() * pool.length)];
-          setShuffle(true);
+        const { matches, query, shuffle: shuffleOn, weak } = intent;
+        // Several approximate matches: don't guess, let the driver choose.
+        if (weak && !shuffleOn && matches.length > 1) {
+          return {
+            message: `Not sure about “${intent.heard}”`,
+            candidates: matches.slice(0, 4),
+          };
         }
-        shuffleHistoryRef.current = [];
-        setActivePage("library");
-        setActivePlaylistId(null);
-        setSortKey(null);
-        setSortDir("asc");
-        // Show the results in the library (so Next/Previous walk through them) —
-        // but only when the library's own search would also find this song;
-        // otherwise (e.g. "<title> by <artist>") play it within the whole library.
-        setSearchQuery(trackSearchScore(query, first) > -Infinity ? query : "");
-        if (first.id === currentTrackId) handleSeek(0);
-        playById(first.id);
-        voiceResumeRef.current = false;
+        const first = startVoiceTrack(matches, query, shuffleOn);
         return `Playing ${describe(first)}`;
       }
 
@@ -1951,6 +1966,7 @@ export default function App() {
           onVoiceResult={handleVoiceResult}
           onVoiceEnd={handleVoiceEnd}
           getVoicePhrases={getVoicePhrases}
+          onPickVoiceTrack={(t) => startVoiceTrack([t], "", false)}
           onClose={() => setCarMode(false)}
         />
       )}

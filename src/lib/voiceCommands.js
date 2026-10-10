@@ -8,6 +8,7 @@
 
 import { fuzzyScore, fuzzyScoreNormalized, getSearchFields, normalizeForSearch } from "./search.js";
 import { ALL_TRACKS_ID, getOrderedPlaylists } from "./playlistOrder.js";
+import { phoneticKey } from "./phonetic.js";
 
 /**
  * Lowercase, strip accents and punctuation ("Café del Mar!" -> "cafe del mar").
@@ -150,50 +151,143 @@ function findPlaylist(name, ordered, { loose }) {
   return bestScore > -Infinity ? best : null;
 }
 
-// `query` and the fields of `x` are already normalised (normalizeForSearch).
-function scoreTrack(query, x) {
-  // "<title> by <artist>"
-  const by = query.indexOf(" by ");
-  if (by > 0) {
-    const st = fuzzyScoreNormalized(query.slice(0, by), x.title);
-    const sa = fuzzyScoreNormalized(query.slice(by + 4), x.artist);
+// --- Track scoring -------------------------------------------------------
+//
+// Score tiers (higher wins): "<title> by/de <artist>" 2000+, a plain
+// substring match up to ~1000, a typo-tolerant match up to 500, words spread
+// over title/artist/album 300, and finally the phonetic fallback (< 300) that
+// catches words the engine spelled differently from the song title.
+
+// Below this, a match is a guess rather than a clear hit.
+export const CONFIDENT_SCORE = 600;
+
+// Words that separate a title from its artist: "<title> by <artist>",
+// "<música> do <artista>". Titles can contain them too ("Garota de
+// Ipanema"), so every occurrence is tried and a split only counts when both
+// halves match.
+const ARTIST_SEPARATORS = [" by ", " de ", " do ", " da ", " dos ", " das ", " por "];
+
+const PHONETIC_MIN_LEN = 3;
+
+function phoneticScore(qk, tk) {
+  if (qk.length < PHONETIC_MIN_LEN || !tk) return -Infinity;
+  const idx = tk.indexOf(qk);
+  if (idx !== -1) return 280 - idx * 0.5 - (tk.length - qk.length) * 0.05;
+  const s = fuzzyScoreNormalized(qk, tk, 0.72);
+  return s === -Infinity ? -Infinity : s * 0.5; // at most 250
+}
+
+// Spelling match, or failing that a sound-alike match.
+function fieldScore(q, qk, text, key) {
+  return Math.max(fuzzyScoreNormalized(q, text), phoneticScore(qk, key));
+}
+
+// Phonetic keys of a track's fields, remembered per track.
+const phoneticCache = new WeakMap();
+function getPhoneticFields(track, x) {
+  const hit = phoneticCache.get(track);
+  if (hit && hit.title === x.title && hit.artist === x.artist && hit.album === x.album) return hit.keys;
+  const keys = {
+    title: phoneticKey(x.title),
+    artist: phoneticKey(x.artist),
+    album: phoneticKey(x.album),
+  };
+  phoneticCache.set(track, { title: x.title, artist: x.artist, album: x.album, keys });
+  return keys;
+}
+
+// Everything about the query that doesn't depend on the track, worked out
+// once instead of once per track.
+function buildQueryProfile(query) {
+  const splits = [];
+  for (const sep of ARTIST_SEPARATORS) {
+    let from = 0;
+    for (;;) {
+      const at = query.indexOf(sep, from);
+      if (at === -1) break;
+      if (at > 0) {
+        const title = query.slice(0, at);
+        const artist = query.slice(at + sep.length);
+        if (title && artist) {
+          splits.push({ title, artist, titleKey: phoneticKey(title), artistKey: phoneticKey(artist) });
+        }
+      }
+      from = at + 1;
+    }
+  }
+  const tokens = query.split(" ").filter(Boolean);
+  return {
+    query,
+    key: phoneticKey(query),
+    splits,
+    tokens,
+    tokenKeys: tokens.map((t) => phoneticKey(t)).filter((k) => k.length >= PHONETIC_MIN_LEN),
+  };
+}
+
+// `x` holds the track's already-normalised fields (normalizeForSearch).
+function scoreTrack(profile, track, x) {
+  const keys = getPhoneticFields(track, x);
+
+  for (const sp of profile.splits) {
+    const st = fieldScore(sp.title, sp.titleKey, x.title, keys.title);
+    const sa = fieldScore(sp.artist, sp.artistKey, x.artist, keys.artist);
     if (st > -Infinity && sa > -Infinity) return 2000 + (st + sa) / 2;
   }
-  const base = Math.max(
-    fuzzyScoreNormalized(query, x.title),
-    fuzzyScoreNormalized(query, x.artist),
-    fuzzyScoreNormalized(query, x.album)
+
+  const spelled = Math.max(
+    fuzzyScoreNormalized(profile.query, x.title),
+    fuzzyScoreNormalized(profile.query, x.artist),
+    fuzzyScoreNormalized(profile.query, x.album)
   );
-  if (base > -Infinity) return base;
+  if (spelled > -Infinity) return spelled;
 
   // Words spread over title + artist + album ("queen radio gaga").
-  const tokens = query.split(" ").filter(Boolean);
-  if (tokens.length > 1) {
+  if (profile.tokens.length > 1) {
     const hay = `${x.title} ${x.artist} ${x.album}`;
-    if (tokens.every((tok) => hay.includes(tok))) return 300;
+    if (profile.tokens.every((tok) => hay.includes(tok))) return 300;
+  }
+
+  // Sound-alike fallback.
+  const sounds = Math.max(
+    phoneticScore(profile.key, keys.title),
+    phoneticScore(profile.key, keys.artist),
+    phoneticScore(profile.key, keys.album)
+  );
+  if (sounds > -Infinity) return sounds;
+
+  if (profile.tokenKeys.length > 1) {
+    const hayKey = `${keys.title} ${keys.artist} ${keys.album}`;
+    if (profile.tokenKeys.every((k) => hayKey.includes(k))) return 260;
   }
   return -Infinity;
 }
 
 /**
  * Decides what to do with a recognition result. `alternatives` are the
- * engine's best guesses, most likely first; the first one that leads to a
- * usable action wins.
+ * engine's best guesses, most likely first. Commands and playlist names are
+ * taken from the first guess that gives one; for song searches every guess
+ * is scored and the best overall match wins (a slightly lower score is
+ * accepted for later guesses, so ties go to the engine's first choice).
  *
  * Returns one of:
  *   { type: "pause" | "resume" | "next" | "previous" }
  *   { type: "shuffle", value: boolean }
  *   { type: "repeat", value: "off" | "all" | "one" }
  *   { type: "playlist", playlist, shuffle }
- *   { type: "tracks", query, matches: Track[], shuffle }
+ *   { type: "tracks", query, matches: Track[], shuffle, score, weak }
+ *       weak = true when the best match is a guess (score < CONFIDENT_SCORE)
  *   { type: "none", heard }
  */
 export function resolveVoiceIntent(alternatives, { tracks, playlists }) {
   const heard = alternatives[0]?.transcript || "";
   const ordered = getOrderedPlaylists(playlists);
   let index = null; // built lazily — only needed for track searches
+  let best = null; // best song-search result so far
+  let loosePlaylist = null; // fallback if no song matches at all
 
-  for (const alt of alternatives) {
+  for (let i = 0; i < alternatives.length; i++) {
+    const alt = alternatives[i];
     const parsed = parseVoiceCommand(alt.transcript);
     if (!parsed) continue;
     if (parsed.type !== "query") return { ...parsed, heard };
@@ -214,20 +308,40 @@ export function resolveVoiceIntent(alternatives, { tracks, playlists }) {
       if (!index) {
         index = tracks.map((track) => ({ track, ...getSearchFields(track) }));
       }
+      const profile = buildQueryProfile(query);
       const scored = [];
       for (const x of index) {
-        const score = scoreTrack(query, x);
+        const score = scoreTrack(profile, x.track, x);
         if (score > -Infinity) scored.push({ track: x.track, score });
       }
       if (scored.length) {
         scored.sort((a, b) => b.score - a.score);
-        return { type: "tracks", query, matches: scored.map((s) => s.track), shuffle, heard };
+        const top = scored[0].score;
+        const result = {
+          type: "tracks",
+          query,
+          matches: scored.map((s) => s.track),
+          shuffle,
+          score: top,
+          weak: top < CONFIDENT_SCORE,
+          heard,
+        };
+        // A clear hit on the engine's first choice needs no second opinion.
+        if (!result.weak && !best) return result;
+        const adjusted = top - i * 5;
+        if (!best || adjusted > best.adjusted) best = { ...result, adjusted };
       }
     }
 
-    const loose = findPlaylist(query, ordered, { loose: true });
-    if (loose) return { type: "playlist", playlist: loose, shuffle, heard };
+    if (!loosePlaylist) {
+      const loose = findPlaylist(query, ordered, { loose: true });
+      if (loose) loosePlaylist = { type: "playlist", playlist: loose, shuffle, heard };
+    }
   }
 
-  return { type: "none", heard };
+  if (best) {
+    const { adjusted, ...result } = best; // eslint-disable-line no-unused-vars
+    return result;
+  }
+  return loosePlaylist || { type: "none", heard };
 }

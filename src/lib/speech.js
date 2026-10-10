@@ -24,8 +24,35 @@ export function isSpeechSupported() {
   return !!getRecognitionCtor();
 }
 
+// Languages the voice search can listen for. The engine recognises one
+// language per session, so the user picks (see the EN/PT button in car mode)
+// instead of relying on the device language, which is often English even for
+// people who name their songs in Portuguese.
+export const VOICE_LANGS = [
+  { code: "en-US", short: "EN", label: "English" },
+  { code: "pt-BR", short: "PT", label: "Português (Brasil)" },
+];
+
+const VOICE_LANG_KEY = "mixtape:voiceLang";
+
+/** The language voice search listens for: the saved choice, else the device language. */
 export function getRecognitionLang() {
-  return (typeof navigator !== "undefined" && navigator.language) || "en-US";
+  try {
+    const saved = localStorage.getItem(VOICE_LANG_KEY);
+    if (VOICE_LANGS.some((l) => l.code === saved)) return saved;
+  } catch {
+    /* storage unavailable — fall through to the device language */
+  }
+  const device = (typeof navigator !== "undefined" && navigator.language) || "";
+  return device.toLowerCase().startsWith("pt") ? "pt-BR" : "en-US";
+}
+
+export function setRecognitionLang(code) {
+  try {
+    localStorage.setItem(VOICE_LANG_KEY, code);
+  } catch {
+    /* not saved — still applies for this session */
+  }
 }
 
 /**
@@ -51,19 +78,19 @@ export async function probeOnDevice(lang) {
 // runs after the user has actually asked for voice search, in the background.
 // The first listening session uses the standard engine; later ones use
 // on-device recognition when the probe found it ready. Cached for the page's
-// lifetime.
-let onDeviceReady = false;
-let probeStarted = false;
+// lifetime, separately for each language.
+const onDeviceReadyByLang = new Map(); // lang -> boolean, once probed
+const probeStartedFor = new Set();
 
-export function isOnDeviceReady() {
-  return onDeviceReady;
+export function isOnDeviceReady(lang) {
+  return onDeviceReadyByLang.get(lang) === true;
 }
 
 export function warmUpOnDevice(lang) {
-  if (probeStarted) return;
-  probeStarted = true;
+  if (probeStartedFor.has(lang)) return;
+  probeStartedFor.add(lang);
   probeOnDevice(lang).then((ok) => {
-    onDeviceReady = ok;
+    onDeviceReadyByLang.set(lang, ok);
   });
 }
 

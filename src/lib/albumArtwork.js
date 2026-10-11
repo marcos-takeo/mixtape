@@ -57,8 +57,16 @@ async function findRelease(artist, album) {
   return [...releases].sort((a, b) => scoreRelease(b, artist, album) - scoreRelease(a, artist, album))[0];
 }
 
+// Cover Art Archive's metadata sometimes lists image URLs with plain http://
+// (e.g. http://coverartarchive.org/release/.../123-500.jpg). The app's content
+// security policy only allows https, so the browser would block the request
+// ("Failed to fetch"). Every host involved serves the same files over https.
+export function toHttps(url) {
+  return String(url).replace(/^http:\/\//i, "https://");
+}
+
 async function fetchCover(url) {
-  const response = await fetch(url, { redirect: "follow" });
+  const response = await fetch(toHttps(url), { redirect: "follow" });
   if (!response.ok) return null;
   const contentType = response.headers.get("content-type") || "image/jpeg";
   const blob = await response.blob();

@@ -292,3 +292,14 @@ export function ViewGridIcon(props) {
     </svg>
   );
 }
+
+export function RefreshIcon(props) {
+  return (
+    <svg {...base} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M21 12a9 9 0 0 1-15.5 6.2" />
+      <path d="M3 12a9 9 0 0 1 15.5-6.2" />
+      <path d="M18.5 2v4h-4" />
+      <path d="M5.5 22v-4h4" />
+    </svg>
+  );
+}

@@ -3,7 +3,7 @@ import { isConfigured as isDriveConfigured } from "../lib/googleDrive.js";
 import { PROVIDERS } from "../lib/providers.js";
 import { supportsFileSystemAccess, pickLocalFilesWithHandles } from "../lib/localFiles.js";
 import DriveBrowser from "./DriveBrowser.jsx";
-import { CarIcon, ChevronLeftIcon, InfoIcon } from "./Icons.jsx";
+import { CarIcon, ChevronLeftIcon, InfoIcon, RefreshIcon } from "./Icons.jsx";
 
 export default function Sidebar({
   onAddLocalFiles,
@@ -18,6 +18,8 @@ export default function Sidebar({
   onDisconnectDrive,
   onAddDriveTrack,
   onAddDriveFolder,
+  onRefreshDriveAccount,
+  refreshingAccountId,
   onClearLibrary,
   playlists,
   libraryCount,
@@ -136,9 +138,20 @@ export default function Sidebar({
               <span className="cloud-account-label" title={conn.label}>
                 {conn.label}
               </span>
-              <button className="row-action-btn row-action-btn-danger" title="Disconnect" onClick={() => handleDisconnect(conn)}>
-                ×
-              </button>
+              <span className="cloud-account-actions">
+                <button
+                  className={`row-action-btn${refreshingAccountId === conn.id ? " spinning" : ""}`}
+                  title="Refresh: check this account for new songs and remove the ones that are gone"
+                  aria-label={`Refresh ${conn.label}`}
+                  disabled={Boolean(refreshingAccountId)}
+                  onClick={() => onRefreshDriveAccount(conn)}
+                >
+                  <RefreshIcon width={14} height={14} />
+                </button>
+                <button className="row-action-btn row-action-btn-danger" title="Disconnect" onClick={() => handleDisconnect(conn)}>
+                  ×
+                </button>
+              </span>
             </div>
             <DriveBrowser
               connection={conn}

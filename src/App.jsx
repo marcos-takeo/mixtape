@@ -111,6 +111,8 @@ export default function App() {
   const [rememberedAccounts, setRememberedAccounts] = useState(() => getRememberedAccounts());
   const [driveError, setDriveError] = useState("");
   const [notice, setNotice] = useState("");
+  const [infoNotice, setInfoNotice] = useState(""); // a result worth telling the user (not an error)
+  const [refreshingAccountId, setRefreshingAccountId] = useState(null);
   const [pendingRelinkTrackId, setPendingRelinkTrackId] = useState(null);
   const [pendingReconnectTrackId, setPendingReconnectTrackId] = useState(null);
   const [sortKey, setSortKey] = useState(null); // null | "title" | "artist"
@@ -913,8 +915,8 @@ export default function App() {
    * load), it re-checks for anything new rather than watching in
    * real time.
    */
-  async function syncDriveAccountLibrary(connection) {
-    const files = await listAllAudioFiles(connection.accessToken);
+  async function syncDriveAccountLibrary(connection, prefetchedFiles) {
+    const files = prefetchedFiles || (await listAllAudioFiles(connection.accessToken));
     await mapWithConcurrency(files, DRIVE_TAG_CONCURRENCY, (f) => addDriveTrackAndTag(f, connection));
 
     const playlistId = `plg:${connection.id}`;
@@ -1008,6 +1010,97 @@ export default function App() {
     setIsPlaying(false);
     setBookmarks([]);
     setNotice("");
+  }
+
+  // Removes several songs from the library at once (and from every playlist,
+  // the play queue and the saved bookmarks / lyrics settings). Only the app's
+  // own entries are deleted — never the files themselves.
+  async function removeTracksById(ids) {
+    const idSet = new Set(ids);
+    if (!idSet.size) return;
+
+    for (const t of tracks) {
+      if (!idSet.has(t.id)) continue;
+      if (t.objectUrl) URL.revokeObjectURL(t.objectUrl);
+      if (t.artworkUrl) URL.revokeObjectURL(t.artworkUrl);
+    }
+
+    if (currentTrackId && idSet.has(currentTrackId)) {
+      audioRef.current?.pause();
+      setCurrentTrackId(null);
+      setIsPlaying(false);
+    }
+
+    setTracks((prev) => prev.filter((t) => !idSet.has(t.id)));
+    setPlayQueue((prev) => prev.filter((q) => !idSet.has(q.trackId)));
+    setPlaylists((prev) =>
+      prev.map((p) => {
+        if (!p.trackIds.some((id) => idSet.has(id))) return p;
+        const updated = { ...p, trackIds: p.trackIds.filter((id) => !idSet.has(id)) };
+        putPlaylist(updated);
+        return updated;
+      })
+    );
+
+    for (const id of idSet) {
+      persistedMetaRef.current.delete(id);
+      await deleteTrack(id);
+      await deleteBookmarksForTrack(id);
+      await deleteLyricsOffset(id);
+      await deleteLyricsOverride(id);
+    }
+  }
+
+  // "Refresh" on a cloud account: checks what the account holds right now,
+  // adds new songs, retries songs whose tags couldn't be read, and offers to
+  // remove songs that are gone (moved to another account, deleted, or no
+  // longer shared) — they would otherwise stay in the list and fail with a 404.
+  async function handleRefreshDriveAccount(connection) {
+    if (refreshingAccountId) return;
+    setRefreshingAccountId(connection.id);
+    setNotice("");
+    setInfoNotice("");
+    try {
+      let live = connection;
+      const files = await withDriveToken(connection.id, (token) => {
+        live = { ...connection, accessToken: token };
+        return listAllAudioFiles(token);
+      });
+
+      const liveIds = new Set(files.map((f) => `drive:${f.id}`));
+      const added = files.filter((f) => !persistedMetaRef.current.has(`drive:${f.id}`)).length;
+      const staleIds = [...persistedMetaRef.current.values()]
+        .filter((r) => r.source === "drive" && r.connectionId === connection.id && !liveIds.has(r.id))
+        .map((r) => r.id);
+
+      await syncDriveAccountLibrary(live, files);
+
+      let removed = 0;
+      let kept = 0;
+      if (staleIds.length) {
+        const ok = window.confirm(
+          `${staleIds.length} song${staleIds.length === 1 ? " is" : "s are"} no longer in ${connection.label} ` +
+            "(moved to another account, deleted or no longer shared).\n\n" +
+            "Remove them from your library and playlists? Your Drive files are not touched."
+        );
+        if (ok) {
+          await removeTracksById(staleIds);
+          removed = staleIds.length;
+        } else {
+          kept = staleIds.length;
+        }
+      }
+
+      const parts = [];
+      parts.push(added ? `${added} new song${added === 1 ? "" : "s"} added` : "no new songs");
+      if (removed) parts.push(`${removed} removed (no longer in Drive)`);
+      if (kept) parts.push(`${kept} missing song${kept === 1 ? "" : "s"} kept`);
+      setInfoNotice(`Refreshed ${connection.label}: ${parts.join(", ")}.`);
+    } catch (err) {
+      setNotice(`Couldn't refresh ${connection.label}: ${err.message}`);
+    } finally {
+      setRefreshingAccountId(null);
+    }
   }
 
   async function handleRemoveTrack(track) {
@@ -1434,7 +1527,11 @@ export default function App() {
       try {
         track = await ensureDriveTrackReady(track);
       } catch (err) {
-        setNotice(err.message);
+        setNotice(
+          err?.status === 404
+            ? `${err.message} Use Refresh (the ⟳ button under ${record?.connectionLabel || "the account"} in the sidebar) to remove songs that are gone.`
+            : err.message
+        );
         // Token renewal didn't work (e.g. Google needs the user to click) —
         // offer the one-click Reconnect button, which retries this track.
         if (err?.status === 401 || err?.status === 403) setPendingReconnectTrackId(track.id);
@@ -1911,6 +2008,8 @@ export default function App() {
         onDisconnectDrive={handleDisconnectDrive}
         onAddDriveTrack={addDriveTrackAndTag}
         onAddDriveFolder={handleAddDriveFolder}
+        onRefreshDriveAccount={handleRefreshDriveAccount}
+        refreshingAccountId={refreshingAccountId}
         onClearLibrary={handleClearLibrary}
         playlists={playlists}
         activePlaylistId={activePlaylistId}
@@ -1966,8 +2065,16 @@ export default function App() {
               )}
             </div>
           ) : null}
-          {notice && (
+          {infoNotice && !notice && (
             <p className="notice-text">
+              {infoNotice}
+              <button className="link-btn notice-action" onClick={() => setInfoNotice("")}>
+                Dismiss
+              </button>
+            </p>
+          )}
+          {notice && (
+            <p className="notice-text notice-text-error">
               {notice}
               {pendingRelinkTrackId && (
                 <button

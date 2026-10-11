@@ -379,6 +379,12 @@ export async function fetchDriveFileBlob(accessToken, fileId) {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!res.ok) {
+    if (res.status === 404) {
+      throw driveError(
+        "This song is no longer in Google Drive (404) — it may have been moved, deleted or is no longer shared with this account.",
+        404
+      );
+    }
     throw driveError(`Could not download file from Drive (${res.status}). Try reconnecting this account.`, res.status);
   }
   return res.blob();

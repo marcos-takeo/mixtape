@@ -1940,6 +1940,20 @@ export default function App() {
         onCanPlay={(e) => {
           if (isPlaying && e.currentTarget.paused) startAudio();
         }}
+        // Keep the play/pause button in step with what the element is really
+        // doing. The browser can stop (or start) playback without the app
+        // asking — Bluetooth device disconnected, headphones unplugged, a call
+        // or another app taking the audio, headset/lock-screen buttons — and
+        // `isPlaying` would otherwise keep showing the old state.
+        onPlay={() => setIsPlaying(true)}
+        onPause={(e) => {
+          const audio = e.currentTarget;
+          // Not a real stop: a song reaching its end fires "pause" just before
+          // "ended" (handleTrackEnded decides what happens next), and a source
+          // that is still loading (e.g. switching songs) isn't playing yet.
+          if (audio.ended || audio.readyState < 2) return;
+          setIsPlaying(false);
+        }}
         onEnded={handleTrackEnded}
       />
 

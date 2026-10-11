@@ -391,16 +391,56 @@ export async function fetchDriveFileBlob(accessToken, fileId) {
  * gracefully to whatever the server sends if it ignores the Range header.
  */
 export async function fetchDriveFileRange(accessToken, fileId, byteLimit = 1_000_000) {
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Range: `bytes=0-${byteLimit - 1}`,
-    },
-  });
-  if (!res.ok && res.status !== 206) {
+  const MAX_ATTEMPTS = 5;
+  for (let attempt = 0; ; attempt++) {
+    let res;
+    try {
+      res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Range: `bytes=0-${byteLimit - 1}`,
+        },
+      });
+    } catch (err) {
+      // Network hiccup (or the browser dropping a request under load).
+      if (attempt + 1 >= MAX_ATTEMPTS) throw err;
+      await sleep(backoffMs(attempt));
+      continue;
+    }
+
+    if (res.ok || res.status === 206) return res.blob();
+
+    if (attempt + 1 < MAX_ATTEMPTS && (await isRetryableDriveResponse(res))) {
+      const retryAfter = Number(res.headers.get("Retry-After"));
+      await sleep(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : backoffMs(attempt));
+      continue;
+    }
     throw driveError(`Could not read file from Drive (${res.status}).`, res.status);
   }
-  return res.blob();
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// 1s, 2s, 4s, 8s … plus a little randomness so parallel retries don't line up.
+function backoffMs(attempt) {
+  return 1000 * 2 ** attempt + Math.random() * 500;
+}
+
+// Worth retrying: Drive's rate limiting (429, or 403 with a rate-limit reason)
+// and temporary server errors. Anything else (401 expired token, 404, a real
+// 403 "no access") would fail again.
+async function isRetryableDriveResponse(res) {
+  if (res.status === 429 || res.status >= 500) return true;
+  if (res.status !== 403) return false;
+  try {
+    const body = await res.clone().json();
+    const reasons = (body?.error?.errors || []).map((e) => e.reason);
+    return reasons.some((r) => /ratelimit|quota/i.test(r || ""));
+  } catch {
+    return false;
+  }
 }
 
 /** Overwrites a Drive file's content in place (same file ID, new bytes) — needs the full "drive" scope. */

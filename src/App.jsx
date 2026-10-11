@@ -27,6 +27,7 @@ import {
 } from "./lib/googleDrive.js";
 import ColumnSettings from "./components/ColumnSettings.jsx";
 import AlbumGrid from "./components/AlbumGrid.jsx";
+import { mapWithConcurrency } from "./lib/pool.js";
 import ViewToggle from "./components/ViewToggle.jsx";
 import { VIEW_ALBUMS, loadViewMode, saveViewMode } from "./lib/viewPrefs.js";
 import { loadColumnPrefs, saveColumnPrefs } from "./lib/columnPrefs.js";
@@ -207,6 +208,7 @@ export default function App() {
   // True while music was paused only so the mic could listen (see handleVoiceStart).
   const voiceResumeRef = useRef(false);
   const persistedMetaRef = useRef(new Map());
+  const driveTagReadsInFlight = useRef(new Set()); // Drive ids whose tags are being read right now
   const orderCounterRef = useRef(0);
   const queueIdRef = useRef(0);
   const shuffleHistoryRef = useRef([]);
@@ -714,41 +716,70 @@ export default function App() {
     setDriveConnections((prev) => prev.filter((c) => c.id !== connectionId));
   }
 
+  // How many Drive files have their tags read at the same time. Higher values
+  // trigger Google's rate limiting on big libraries.
+  const DRIVE_TAG_CONCURRENCY = 5;
+
+  // Stand-in artists saved when the tags of a Drive song couldn't be read.
+  const TAG_PLACEHOLDER_ARTISTS = ["Google Drive", "Reading tags…"];
+
+  // True for a Drive song whose tags were never actually read (the download
+  // failed, or the app was closed mid-sync), so the next sync tries again.
+  function needsDriveTagRepair(r) {
+    if (!r || r.source !== "drive") return false;
+    if (r.tagsFailed) return true;
+    const nameWithoutExt = (r.fileName || "").replace(/\.[^/.]+$/, "");
+    return (
+      TAG_PLACEHOLDER_ARTISTS.includes(r.artist) &&
+      r.durationSec == null &&
+      !r.artworkBlob &&
+      r.title === nameWithoutExt
+    );
+  }
+
   /**
    * Downloads just enough of a Drive file to read its ID3 tags (not the
    * whole thing) so the library shows real titles/artists/art right away
-   * instead of a placeholder until the track is first played.
+   * instead of a placeholder until the track is first played. Songs whose
+   * tags couldn't be read earlier are retried here on the next sync.
    */
   async function addDriveTrackAndTag(f, connection) {
     const id = `drive:${f.id}`;
-    if (persistedMetaRef.current.has(id)) return;
+    const existing = persistedMetaRef.current.get(id);
+    if (existing && !needsDriveTagRepair(existing)) return;
+    if (driveTagReadsInFlight.current.has(id)) return;
+    driveTagReadsInFlight.current.add(id);
 
-    const placeholder = {
-      id,
-      source: "drive",
-      driveId: f.id,
-      connectionId: connection.id,
-      connectionLabel: connection.label,
-      fileName: f.name,
-      title: f.name.replace(/\.[^/.]+$/, ""),
-      artist: "Reading tags…",
-      album: "",
-      year: null,
-      isrc: null,
-      durationSec: null,
-      artworkBlob: null,
-      order: nextOrder(),
-      updatedAt: Date.now(),
-    };
-    persistedMetaRef.current.set(id, placeholder);
-    putTrack(placeholder).catch(() => {});
-    setTracks((prev) => [...prev, hydrateRecord(placeholder)]);
+    const repairing = Boolean(existing);
+    let base = existing;
+    if (!repairing) {
+      base = {
+        id,
+        source: "drive",
+        driveId: f.id,
+        connectionId: connection.id,
+        connectionLabel: connection.label,
+        fileName: f.name,
+        title: f.name.replace(/\.[^/.]+$/, ""),
+        artist: "Reading tags…",
+        album: "",
+        year: null,
+        isrc: null,
+        durationSec: null,
+        artworkBlob: null,
+        order: nextOrder(),
+        updatedAt: Date.now(),
+      };
+      persistedMetaRef.current.set(id, base);
+      putTrack(base).catch(() => {});
+      setTracks((prev) => [...prev, hydrateRecord(base)]);
+    }
 
     try {
       const partialBlob = await fetchDriveFileRange(connection.accessToken, f.id);
       const tags = await readTags(partialBlob, f.name, f.sizeBytes);
       const record = {
-        ...placeholder,
+        ...base,
         title: tags.title,
         artist: tags.artist,
         album: tags.album,
@@ -756,22 +787,48 @@ export default function App() {
         isrc: tags.isrc || null,
         durationSec: tags.durationSec,
         artworkBlob: tags.artworkBlob || null,
+        tagsFailed: false,
         updatedAt: Date.now(),
       };
       persistedMetaRef.current.set(id, record);
       await putTrack(record);
-      setTracks((prev) => prev.map((t) => (t.id === id ? hydrateRecord(record) : t)));
+      const fresh = hydrateRecord(record);
+      setTracks((prev) =>
+        prev.map((t) => {
+          if (t.id !== id) return t;
+          // A song that's already listed (and maybe playing) only gets its tags
+          // updated; its playback state is left alone.
+          return repairing
+            ? {
+                ...t,
+                title: fresh.title,
+                artist: fresh.artist,
+                album: fresh.album,
+                year: fresh.year,
+                isrc: fresh.isrc,
+                durationSec: fresh.durationSec,
+                artworkUrl: fresh.artworkUrl,
+              }
+            : fresh;
+        })
+      );
     } catch (err) {
-      console.warn("Couldn't eagerly read tags for", f.name, err);
-      const fallback = { ...placeholder, artist: "Google Drive" };
+      console.warn("Couldn't read tags for", f.name, err);
+      // Keep a stand-in so the song still shows up and plays, but mark it so
+      // the next sync tries again.
+      const fallback = repairing ? { ...base, tagsFailed: true } : { ...base, artist: "Google Drive", tagsFailed: true };
       persistedMetaRef.current.set(id, fallback);
       putTrack(fallback).catch(() => {});
-      setTracks((prev) => prev.map((t) => (t.id === id ? hydrateRecord(fallback) : t)));
+      if (!repairing) {
+        setTracks((prev) => prev.map((t) => (t.id === id ? hydrateRecord(fallback) : t)));
+      }
+    } finally {
+      driveTagReadsInFlight.current.delete(id);
     }
   }
 
   function handleAddDriveFolder(mp3List, connection) {
-    mp3List.forEach((f) => addDriveTrackAndTag(f, connection));
+    mapWithConcurrency(mp3List, DRIVE_TAG_CONCURRENCY, (f) => addDriveTrackAndTag(f, connection));
   }
 
   /**
@@ -785,7 +842,7 @@ export default function App() {
    */
   async function syncDriveAccountLibrary(connection) {
     const files = await listAllAudioFiles(connection.accessToken);
-    await Promise.all(files.map((f) => addDriveTrackAndTag(f, connection)));
+    await mapWithConcurrency(files, DRIVE_TAG_CONCURRENCY, (f) => addDriveTrackAndTag(f, connection));
 
     const playlistId = `plg:${connection.id}`;
     const trackIds = files.map((f) => `drive:${f.id}`);

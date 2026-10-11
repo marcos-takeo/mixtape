@@ -212,6 +212,10 @@ export default function App() {
   const orderCounterRef = useRef(0);
   const queueIdRef = useRef(0);
   const shuffleHistoryRef = useRef([]);
+  const driveReadyRef = useRef(new Map()); // track id -> in-flight full download (see ensureDriveTrackReady)
+  const preloadFailedRef = useRef(new Set()); // next-song downloads that failed (not retried in the background)
+  const shuffleNextRef = useRef(null); // { forId, id }: the shuffle pick made ahead of time so it can be preloaded
+  const mediaActionsRef = useRef({}); // latest handlers for the lock-screen / headset controls
   const trackListRef = useRef(null);
 
   const playingTrack = tracks.find((t) => t.id === currentTrackId) || null;
@@ -432,6 +436,75 @@ export default function App() {
     audio.preservesPitch = true;
     if ("webkitPreservesPitch" in audio) audio.webkitPreservesPitch = true;
   }, [playbackRate, playingTrack?.objectUrl]);
+
+  // Keeps the <audio> element's source in step with the current song. (playById
+  // already switches it directly when you pick a song; this covers everything
+  // else, e.g. the file being replaced after saving tags.)
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const url = safeAudioSrc(playingTrack?.objectUrl);
+    if (url) {
+      if (audio.src !== url) audio.src = url;
+    } else if (audio.getAttribute("src")) {
+      audio.removeAttribute("src");
+      audio.load();
+    }
+  }, [playingTrack?.objectUrl]);
+
+  // Lock-screen / notification / headset controls and "now playing" details.
+  // Declaring them also tells the phone this is a media player, which helps
+  // playback carry on (and the next song start) while the screen is off.
+  mediaActionsRef.current = {
+    play: () => {
+      audioRef.current?.play()?.catch?.(() => {});
+    },
+    pause: () => audioRef.current?.pause(),
+    next: playNext,
+    previous: playPrev,
+    seekTo: handleSeek,
+  };
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    const handlers = {
+      play: () => mediaActionsRef.current.play(),
+      pause: () => mediaActionsRef.current.pause(),
+      nexttrack: () => mediaActionsRef.current.next(),
+      previoustrack: () => mediaActionsRef.current.previous(),
+      seekto: (d) => {
+        if (typeof d?.seekTime === "number") mediaActionsRef.current.seekTo(d.seekTime);
+      },
+    };
+    for (const [action, handler] of Object.entries(handlers)) {
+      try {
+        navigator.mediaSession.setActionHandler(action, handler);
+      } catch {
+        // This browser doesn't support that action.
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    try {
+      navigator.mediaSession.metadata = playingTrack
+        ? new MediaMetadata({
+            title: playingTrack.title || "",
+            artist: playingTrack.artist || "",
+            album: playingTrack.album || "",
+            artwork: playingTrack.artworkUrl ? [{ src: playingTrack.artworkUrl }] : [],
+          })
+        : null;
+    } catch {
+      // Metadata is a nicety; never let it break playback.
+    }
+  }, [playingTrack?.id, playingTrack?.title, playingTrack?.artist, playingTrack?.album, playingTrack?.artworkUrl]);
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+    navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+  }, [isPlaying]);
 
   // Column visibility is remembered per playlist (and separately for the
   // Library/all-tracks view), so reload it whenever the active view changes.
@@ -859,9 +932,18 @@ export default function App() {
 
   // Drive files' full audio is only downloaded the first time they're played
   // (tag-reading uses a much smaller partial download — see addDriveTrackAndTag).
-  async function ensureDriveTrackReady(track) {
-    if (track.objectUrl) return track;
+  // The next song is also downloaded ahead of time while the current one plays
+  // (see the preload effect), so a song asked for twice shares one download.
+  function ensureDriveTrackReady(track) {
+    if (track.objectUrl) return Promise.resolve(track);
+    const inFlight = driveReadyRef.current.get(track.id);
+    if (inFlight) return inFlight;
+    const promise = loadDriveTrack(track).finally(() => driveReadyRef.current.delete(track.id));
+    driveReadyRef.current.set(track.id, promise);
+    return promise;
+  }
 
+  async function loadDriveTrack(track) {
     const record = persistedMetaRef.current.get(track.id);
     const connection = driveConnections.find((c) => c.id === record?.connectionId);
     if (!connection) {
@@ -875,32 +957,43 @@ export default function App() {
     const blob = await withDriveToken(connection.id, (token) =>
       fetchDriveFileBlob(token, track.driveId)
     );
-    const tags = await readTags(blob, track.title);
+    // The song is playable as soon as it's downloaded. Reading its tags again
+    // (the whole file this time) used to happen first and delayed the start;
+    // it now runs in the background and just refreshes the details afterwards.
     const objectUrl = URL.createObjectURL(blob);
-    const updated = { ...track, ...tags, objectUrl, tagsLoaded: true };
-    setTracks((prev) => prev.map((t) => (t.id === track.id ? updated : t)));
+    setTracks((prev) => prev.map((t) => (t.id === track.id ? { ...t, objectUrl } : t)));
 
-    const updatedRecord = {
-      id: track.id,
-      source: "drive",
-      driveId: track.driveId,
-      connectionId: connection.id,
-      connectionLabel: connection.label,
-      fileName: track.fileName,
-      title: tags.title,
-      artist: tags.artist,
-      album: tags.album,
-      year: tags.year,
-      isrc: tags.isrc || null,
-      durationSec: tags.durationSec,
-      artworkBlob: tags.artworkBlob || null,
-      order: record?.order ?? nextOrder(),
-      updatedAt: Date.now(),
-    };
-    persistedMetaRef.current.set(track.id, updatedRecord);
-    await putTrack(updatedRecord);
+    (async () => {
+      try {
+        const tags = await readTags(blob, track.title);
+        setTracks((prev) =>
+          prev.map((t) => (t.id === track.id ? { ...t, ...tags, objectUrl: t.objectUrl, tagsLoaded: true } : t))
+        );
+        const updatedRecord = {
+          id: track.id,
+          source: "drive",
+          driveId: track.driveId,
+          connectionId: connection.id,
+          connectionLabel: connection.label,
+          fileName: track.fileName,
+          title: tags.title,
+          artist: tags.artist,
+          album: tags.album,
+          year: tags.year,
+          isrc: tags.isrc || null,
+          durationSec: tags.durationSec,
+          artworkBlob: tags.artworkBlob || null,
+          order: record?.order ?? nextOrder(),
+          updatedAt: Date.now(),
+        };
+        persistedMetaRef.current.set(track.id, updatedRecord);
+        await putTrack(updatedRecord);
+      } catch {
+        // The song already plays; its details just stay as they were.
+      }
+    })();
 
-    return updated;
+    return { ...track, objectUrl };
   }
 
   async function handleClearLibrary() {
@@ -1263,6 +1356,22 @@ export default function App() {
     return list;
   }, [tracks, activePlaylistId, playlists, sortKey, sortDir, debouncedSearchQuery]);
 
+  // While a song plays, download the next one in the background so it starts
+  // instantly when this one ends (a Drive song is otherwise only downloaded at
+  // that moment, which is the wait between songs).
+  useEffect(() => {
+    if (!isPlaying || !currentTrackId) return undefined;
+    const timer = setTimeout(() => {
+      const nextId = peekNextTrackId();
+      const next = nextId ? tracks.find((t) => t.id === nextId) : null;
+      if (!next || next.source !== "drive" || next.objectUrl) return;
+      if (preloadFailedRef.current.has(next.id)) return;
+      ensureDriveTrackReady(next).catch(() => preloadFailedRef.current.add(next.id));
+    }, 1500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, currentTrackId, queue, playQueue, shuffle, repeatMode, driveConnections]);
+
   const reorderable = sortKey === null && !debouncedSearchQuery.trim();
 
   async function handleReorder(fromIndex, toIndex) {
@@ -1336,17 +1445,19 @@ export default function App() {
     setCurrentTrackId(track.id);
     setIsPlaying(true);
 
-    // Don't wait for a paint (requestAnimationFrame): browsers don't run
-    // animation frames for hidden / minimised windows or a phone with the
-    // screen off, so the next song would only start once the user came back.
+    // Switch the <audio> element to the new song right here instead of waiting
+    // for React to render and the element to report it can play. When a song
+    // ends with the screen off, the browser may throttle rendering and timers
+    // (nothing is playing in that moment), so a start that depended on them
+    // could stall until the user came back. Media events and this synchronous
+    // path still run.
     const audio = audioRef.current;
     const url = safeAudioSrc(track.objectUrl);
-    if (audio && url && audio.src === url) {
-      // This source is already loaded (e.g. restarting the current song).
+    if (audio && url) {
+      if (audio.src !== url) audio.src = url;
       startAudio();
     }
-    // Otherwise the source is about to change; <audio onCanPlay> starts it
-    // as soon as the new song is ready (media events fire even when hidden).
+    // (If the file wasn't ready, <audio onCanPlay> starts it when it is.)
   }
 
   // Starts the <audio> element. If the browser refuses (autoplay policy) the
@@ -1381,9 +1492,17 @@ export default function App() {
     if (playNextFromQueue()) return;
     if (!queue.length) return;
     if (shuffle) {
-      const candidates = queue.filter((t) => t.id !== currentTrackId);
-      const pool = candidates.length ? candidates : queue;
-      const choice = pool[Math.floor(Math.random() * pool.length)];
+      // Reuse the pick made while the song was playing (it may already be
+      // downloaded), otherwise choose now.
+      const pending = shuffleNextRef.current;
+      let choice =
+        pending && pending.forId === currentTrackId ? queue.find((t) => t.id === pending.id) : null;
+      if (!choice) {
+        const candidates = queue.filter((t) => t.id !== currentTrackId);
+        const pool = candidates.length ? candidates : queue;
+        choice = pool[Math.floor(Math.random() * pool.length)];
+      }
+      shuffleNextRef.current = null;
       if (currentTrackId) shuffleHistoryRef.current.push(currentTrackId);
       playById(choice.id);
       return;
@@ -1391,6 +1510,30 @@ export default function App() {
     const idx = queue.findIndex((t) => t.id === currentTrackId);
     const nextIdx = idx === -1 ? 0 : (idx + 1) % queue.length;
     playById(queue[nextIdx].id);
+  }
+
+  // Which song will play after this one, or null when there isn't one to
+  // prepare (repeat-one, or the end of the list with repeat off). Mirrors the
+  // choice playNext makes.
+  function peekNextTrackId() {
+    if (playQueue.length) return playQueue[0].trackId;
+    if (!queue.length || !currentTrackId) return null;
+    if (repeatMode === "one") return null;
+    if (shuffle) {
+      const pending = shuffleNextRef.current;
+      if (pending && pending.forId === currentTrackId && queue.some((t) => t.id === pending.id)) {
+        return pending.id;
+      }
+      const candidates = queue.filter((t) => t.id !== currentTrackId);
+      if (!candidates.length) return null;
+      const choice = candidates[Math.floor(Math.random() * candidates.length)];
+      shuffleNextRef.current = { forId: currentTrackId, id: choice.id };
+      return choice.id;
+    }
+    const idx = queue.findIndex((t) => t.id === currentTrackId);
+    if (idx === -1) return null;
+    if (idx === queue.length - 1 && repeatMode === "off") return null;
+    return queue[(idx + 1) % queue.length].id;
   }
 
   function playPrev() {
@@ -1907,7 +2050,6 @@ export default function App() {
 
       <audio
         ref={audioRef}
-        src={safeAudioSrc(playingTrack?.objectUrl)}
         onTimeUpdate={(e) => setCurrentTime(e.target.currentTime)}
         onLoadedMetadata={(e) => {
           const realDuration = e.target.duration;

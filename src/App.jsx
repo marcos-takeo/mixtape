@@ -1896,6 +1896,10 @@ export default function App() {
     const describe = (t) => `“${t.title}”${t.artist ? ` — ${t.artist}` : ""}`;
 
     switch (intent.type) {
+      case "language":
+        // CarMode owns the voice language; it applies the change and listens again.
+        return { language: intent.lang };
+
       case "pause":
         voiceResumeRef.current = false;
         audioRef.current?.pause();

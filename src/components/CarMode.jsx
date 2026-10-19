@@ -68,6 +68,13 @@ export default function CarMode({
   const listenerRef = useRef(null);
   const [voiceLang, setVoiceLang] = useState(getRecognitionLang);
   const voiceLangInfo = VOICE_LANGS.find((l) => l.code === voiceLang) || VOICE_LANGS[0];
+  const voiceLangRef = useRef(voiceLang); // the language of the session being started right now
+  voiceLangRef.current = voiceLang;
+  // After a spoken "switch language", listen again automatically in the new language.
+  const relistenLangRef = useRef(null); // language to listen in once the current session has ended
+  const relistenPendingRef = useRef(false); // true between that session's end and the next one's start
+  const relistenTimerRef = useRef(null);
+  const startVoiceRef = useRef(null);
 
   // Latest callbacks, so a listening session started earlier still acts on
   // fresh app state when the result arrives a few seconds later.
@@ -101,6 +108,12 @@ export default function CarMode({
   useEffect(
     () => () => {
       clearTimeout(messageTimerRef.current);
+      clearTimeout(relistenTimerRef.current);
+      if (relistenPendingRef.current) {
+        // Left car mode in the gap before listening again: hand the music back.
+        relistenPendingRef.current = false;
+        callbacksRef.current.onVoiceEnd?.();
+      }
       listenerRef.current?.abort();
     },
     []
@@ -112,7 +125,10 @@ export default function CarMode({
     messageTimerRef.current = setTimeout(() => setMessage(""), ms);
   }
 
-  function handleVoiceSearch() {
+  // `autoLang` is set when listening again right after a spoken language change
+  // (the mic button passes a click event instead, which is ignored).
+  function handleVoiceSearch(autoLang) {
+    const auto = typeof autoLang === "string";
     // Tap again while listening = "I'm done talking".
     if (listening) {
       listenerRef.current?.stop();
@@ -123,22 +139,44 @@ export default function CarMode({
       return;
     }
 
-    clearTimeout(messageTimerRef.current);
-    setMessage("");
+    const lang = auto ? autoLang : voiceLangRef.current;
+    if (!auto) {
+      // (An automatic restart keeps the "language changed" message on screen.)
+      clearTimeout(messageTimerRef.current);
+      setMessage("");
+    }
     setHeardText("");
     setListening(true);
     callbacksRef.current.onVoiceStart?.();
 
-    const onDevice = isOnDeviceReady();
+    const onDevice = isOnDeviceReady(lang);
     listenerRef.current = startListening({
-      lang: voiceLang,
+      lang,
       onDevice,
       phrases: onDevice ? callbacksRef.current.getVoicePhrases?.() || [] : [],
       onInterim: setHeardText,
       onResult: (alternatives) => {
         setHeardText("");
         const outcome = callbacksRef.current.onVoiceResult?.(alternatives);
-        if (outcome && typeof outcome === "object") {
+        if (outcome && typeof outcome === "object" && outcome.language) {
+          // Spoken "switch language": change it, say so in text, listen again.
+          const target = VOICE_LANGS.find((l) => l.code === outcome.language);
+          if (target) {
+            const already = target.code === lang;
+            if (!already) {
+              setRecognitionLang(target.code);
+              voiceLangRef.current = target.code;
+              setVoiceLang(target.code);
+            }
+            relistenLangRef.current = target.code;
+            flashMessage(
+              already
+                ? `Already listening in ${target.label} — listening…`
+                : `Voice language: ${target.label} — listening…`,
+              3500
+            );
+          }
+        } else if (outcome && typeof outcome === "object") {
           // Only approximate matches: let the driver pick.
           setCandidates(outcome.candidates || []);
           setView("candidates");
@@ -152,13 +190,27 @@ export default function CarMode({
         listenerRef.current = null;
         setListening(false);
         setHeardText("");
+        const again = relistenLangRef.current;
+        if (again) {
+          // Keep the music paused and start a new session in the new language
+          // once this one has fully wound down; that session's end gives the
+          // music back.
+          relistenLangRef.current = null;
+          relistenPendingRef.current = true;
+          relistenTimerRef.current = setTimeout(() => {
+            relistenPendingRef.current = false;
+            startVoiceRef.current?.(again);
+          }, 300);
+          return;
+        }
         callbacksRef.current.onVoiceEnd?.();
       },
     });
 
     // Check for on-device recognition in the background, for the next tap.
-    warmUpOnDevice(voiceLang);
+    warmUpOnDevice(lang);
   }
+  startVoiceRef.current = handleVoiceSearch;
 
   function toggleVoiceLang() {
     const next = VOICE_LANGS[(VOICE_LANGS.findIndex((l) => l.code === voiceLang) + 1) % VOICE_LANGS.length];

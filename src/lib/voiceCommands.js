@@ -16,6 +16,26 @@ import { phoneticKey } from "./phonetic.js";
  */
 export const normalizeSpeech = normalizeForSearch;
 
+// "Switch language to Portuguese" / "Mudar idioma para inglês": changes the
+// language the voice search listens for. It needs a change verb AND the word
+// for "language", so song titles that merely contain "English" or "Português"
+// are never mistaken for it. English means American English and Portuguese
+// means Brazilian Portuguese (the two languages of the EN / PT button).
+const LANGUAGE_VERB_RE = /\b(switch|change|set|toggle|swap|mudar|muda|mude|trocar|troca|troque|alterar|altera|altere)\b/;
+const LANGUAGE_NOUN_RE = /\b(language|languages|idioma|idiomas|lingua|linguagem)\b/;
+
+function parseLanguageCommand(t) {
+  if (t.split(" ").length > 9) return null; // a command, not a song title
+  if (!LANGUAGE_VERB_RE.test(t) || !LANGUAGE_NOUN_RE.test(t)) return null;
+  // Only look at what follows the word "language" ("… language to portuguese").
+  const after = t.slice(t.search(LANGUAGE_NOUN_RE));
+  // Loose stems: engines often spell these words a little differently
+  // (portugese, porteguese, ingles / inglês, brasil / brazil …).
+  if (/\b(port\w*|brazil\w*|brasil\w*)\b/.test(after)) return { type: "language", lang: "pt-BR" };
+  if (/\b(ingl\w*|english|american\w*)\b/.test(after)) return { type: "language", lang: "en-US" };
+  return null;
+}
+
 // Whole-utterance commands.
 const SIMPLE_COMMANDS = [
   [
@@ -94,6 +114,9 @@ export function parseVoiceCommand(transcript) {
     .replace(/\s+(please|por favor)$/, "")
     .trim();
   if (!t) return null;
+
+  const languageCommand = parseLanguageCommand(t);
+  if (languageCommand) return languageCommand;
 
   for (const [re, intent] of SIMPLE_COMMANDS) {
     if (re.test(t)) return { ...intent };
@@ -274,6 +297,7 @@ function scoreTrack(profile, track, x) {
  *   { type: "pause" | "resume" | "next" | "previous" }
  *   { type: "shuffle", value: boolean }
  *   { type: "repeat", value: "off" | "all" | "one" }
+ *   { type: "language", lang: "en-US" | "pt-BR" }
  *   { type: "playlist", playlist, shuffle }
  *   { type: "tracks", query, matches: Track[], shuffle, score, weak }
  *       weak = true when the best match is a guess (score < CONFIDENT_SCORE)
@@ -281,6 +305,12 @@ function scoreTrack(profile, track, x) {
  */
 export function resolveVoiceIntent(alternatives, { tracks, playlists }) {
   const heard = alternatives[0]?.transcript || "";
+  // A language change is checked on every guess first, so a song search that
+  // happens to match the first guess can't hide it.
+  for (const alt of alternatives) {
+    const command = parseVoiceCommand(alt.transcript);
+    if (command?.type === "language") return { ...command, heard };
+  }
   const ordered = getOrderedPlaylists(playlists);
   let index = null; // built lazily — only needed for track searches
   let best = null; // best song-search result so far

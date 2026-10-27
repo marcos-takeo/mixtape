@@ -15,7 +15,7 @@ function computeLayout(width) {
   return { columns, gap, rowHeight };
 }
 
-function Card({ track, active, onPlay }) {
+function Card({ track, active, loading, onPlay }) {
   const [artFailed, setArtFailed] = useState(false);
   // A new image (e.g. after editing the tags) deserves a fresh try.
   useEffect(() => setArtFailed(false), [track.artworkUrl]);
@@ -24,7 +24,8 @@ function Card({ track, active, onPlay }) {
 
   return (
     <button
-      className={`album-card${active ? " active" : ""}${unavailable ? " unavailable" : ""}`}
+      className={`album-card${active ? " active" : ""}${loading ? " loading" : ""}${unavailable ? " unavailable" : ""}`}
+      aria-busy={loading || undefined}
       onClick={onPlay}
       title={`${track.title}${track.artist ? ` — ${track.artist}` : ""}`}
     >
@@ -40,13 +41,14 @@ function Card({ track, active, onPlay }) {
       ) : (
         <div className="album-card-art album-card-art-missing">album art not found</div>
       )}
+      {loading && <span className="album-card-spinner" aria-hidden="true" />}
       <span className="album-card-title">{track.title}</span>
       <span className="album-card-artist">{track.artist || "\u00a0"}</span>
     </button>
   );
 }
 
-function Row({ index, style, ariaAttributes, tracks, columns, gap, currentId, onPlay }) {
+function Row({ index, style, ariaAttributes, tracks, columns, gap, currentId, loadingId, onPlay }) {
   const start = index * columns;
   const cards = tracks.slice(start, start + columns);
   return (
@@ -55,7 +57,7 @@ function Row({ index, style, ariaAttributes, tracks, columns, gap, currentId, on
       {...ariaAttributes}
     >
       {cards.map((t, i) => (
-        <Card key={t.id} track={t} active={t.id === currentId} onPlay={() => onPlay(start + i)} />
+        <Card key={t.id} track={t} active={t.id === currentId} loading={t.id === loadingId} onPlay={() => onPlay(start + i)} />
       ))}
     </div>
   );
@@ -66,7 +68,7 @@ function Row({ index, style, ariaAttributes, tracks, columns, gap, currentId, on
  * artist). Clicking a card plays it. Virtualized by rows of cards, because a
  * library can hold thousands of songs.
  */
-const AlbumGrid = forwardRef(function AlbumGrid({ tracks, currentId, onPlay }, ref) {
+const AlbumGrid = forwardRef(function AlbumGrid({ tracks, currentId, loadingId, onPlay }, ref) {
   const wrapRef = useRef(null);
   const listRef = useListRef(null);
   const [width, setWidth] = useState(0);
@@ -101,8 +103,8 @@ const AlbumGrid = forwardRef(function AlbumGrid({ tracks, currentId, onPlay }, r
   );
 
   const rowProps = useMemo(
-    () => ({ tracks, columns, gap, currentId, onPlay }),
-    [tracks, columns, gap, currentId, onPlay]
+    () => ({ tracks, columns, gap, currentId, loadingId, onPlay }),
+    [tracks, columns, gap, currentId, loadingId, onPlay]
   );
 
   if (!tracks.length) {

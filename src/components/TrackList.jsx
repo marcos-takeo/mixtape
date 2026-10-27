@@ -89,6 +89,7 @@ function Row({
   ariaAttributes,
   tracks,
   currentId,
+  loadingId,
   onPlay,
   onEdit,
   onRemove,
@@ -138,7 +139,7 @@ function Row({
         title={unavailable ? "File not linked this session — click for details" : undefined}
       >
         <span
-          className="track-art"
+          className={`track-art${track.id === loadingId ? " loading" : ""}`}
           style={track.artworkUrl ? { backgroundImage: `url(${track.artworkUrl})` } : undefined}
         />
       </button>
@@ -229,6 +230,7 @@ const TrackList = forwardRef(function TrackList(
   {
   tracks,
   currentId,
+  loadingId,
   onPlay,
   onEdit,
   onRemove,
@@ -269,6 +271,7 @@ const TrackList = forwardRef(function TrackList(
     () => ({
       tracks,
       currentId,
+      loadingId,
       onPlay,
       onEdit,
       onRemove,
@@ -284,6 +287,7 @@ const TrackList = forwardRef(function TrackList(
     [
       tracks,
       currentId,
+      loadingId,
       onPlay,
       onEdit,
       onRemove,

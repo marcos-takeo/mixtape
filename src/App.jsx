@@ -113,6 +113,32 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [infoNotice, setInfoNotice] = useState(""); // a result worth telling the user (not an error)
   const [refreshingAccountId, setRefreshingAccountId] = useState(null);
+  // The song the user just asked for, from the click until it actually starts
+  // (a Drive song first has to be downloaded). Shown as a spinner so people
+  // can see something is happening and don't keep clicking.
+  const [loadingTrackId, setLoadingTrackId] = useState(null);
+  const loadingTrackIdRef = useRef(null);
+  function setLoading(id) {
+    loadingTrackIdRef.current = id;
+    setLoadingTrackId(id);
+  }
+  // Only clears the spinner if it's still about this song (the user may have
+  // clicked another one in the meantime).
+  function clearLoadingFor(id) {
+    if (loadingTrackIdRef.current === id) setLoading(null);
+  }
+  // The spinner only appears if starting takes a moment, so songs that start
+  // instantly (local files, preloaded songs) don't make the play button flicker.
+  const [loadingVisible, setLoadingVisible] = useState(false);
+  useEffect(() => {
+    if (loadingTrackId === null) {
+      setLoadingVisible(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setLoadingVisible(true), 250);
+    return () => clearTimeout(timer);
+  }, [loadingTrackId]);
+  const shownLoadingId = loadingVisible ? loadingTrackId : null;
   const [pendingRelinkTrackId, setPendingRelinkTrackId] = useState(null);
   const [pendingReconnectTrackId, setPendingReconnectTrackId] = useState(null);
   const [sortKey, setSortKey] = useState(null); // null | "title" | "artist"
@@ -438,6 +464,13 @@ export default function App() {
     audio.preservesPitch = true;
     if ("webkitPreservesPitch" in audio) audio.webkitPreservesPitch = true;
   }, [playbackRate, playingTrack?.objectUrl]);
+
+  // Safety net: never leave the spinner up forever if no "playing" event comes.
+  useEffect(() => {
+    if (loadingTrackId === null) return undefined;
+    const timer = setTimeout(() => setLoading(null), 45000);
+    return () => clearTimeout(timer);
+  }, [loadingTrackId]);
 
   // Keeps the <audio> element's source in step with the current song. (playById
   // already switches it directly when you pick a song; this covers everything
@@ -1497,6 +1530,8 @@ export default function App() {
   async function playById(id) {
     let track = tracks.find((t) => t.id === id);
     if (!track) return;
+    // Already on its way: a second click would only restart the download.
+    if (loadingTrackIdRef.current === id) return;
     setNotice("");
     setPendingRelinkTrackId(null);
     setPendingReconnectTrackId(null);
@@ -1512,6 +1547,8 @@ export default function App() {
       return;
     }
 
+    setLoading(id);
+
     if (track.source === "drive" && !track.objectUrl) {
       const record = persistedMetaRef.current.get(track.id);
       const connection = driveConnections.find((c) => c.id === record?.connectionId);
@@ -1522,11 +1559,13 @@ export default function App() {
             : "Reconnect the Google Drive account this track came from to play it."
         );
         setPendingReconnectTrackId(track.id);
+        clearLoadingFor(id);
         return;
       }
       try {
         track = await ensureDriveTrackReady(track);
       } catch (err) {
+        clearLoadingFor(id);
         setNotice(
           err?.status === 404
             ? `${err.message} Use Refresh (the ⟳ button under ${record?.connectionLabel || "the account"} in the sidebar) to remove songs that are gone.`
@@ -1537,6 +1576,8 @@ export default function App() {
         if (err?.status === 401 || err?.status === 403) setPendingReconnectTrackId(track.id);
         return;
       }
+      // The user picked another song while this one was downloading.
+      if (loadingTrackIdRef.current !== id) return;
     }
 
     setCurrentTrackId(track.id);
@@ -1551,8 +1592,14 @@ export default function App() {
     const audio = audioRef.current;
     const url = safeAudioSrc(track.objectUrl);
     if (audio && url) {
+      // Already playing this very file (clicked the current song again):
+      // no new "playing" event will come, so there is nothing to wait for.
+      const alreadyPlaying = audio.src === url && !audio.paused && audio.readyState >= 3;
       if (audio.src !== url) audio.src = url;
       startAudio();
+      if (alreadyPlaying) clearLoadingFor(id);
+    } else {
+      clearLoadingFor(id);
     }
     // (If the file wasn't ready, <audio onCanPlay> starts it when it is.)
   }
@@ -1565,7 +1612,10 @@ export default function App() {
     if (!audio) return;
     const result = audio.play();
     result?.catch?.((err) => {
-      if (err?.name === "NotAllowedError") setIsPlaying(false);
+      if (err?.name === "NotAllowedError") {
+        setIsPlaying(false);
+        setLoading(null);
+      }
     });
   }
 
@@ -2111,12 +2161,13 @@ export default function App() {
               onOpenPlaylist={navigateToLibrary}
             />
           ) : viewMode === VIEW_ALBUMS ? (
-            <AlbumGrid ref={trackListRef} tracks={queue} currentId={playingTrack?.id} onPlay={playIndexInQueue} />
+            <AlbumGrid ref={trackListRef} tracks={queue} currentId={playingTrack?.id} loadingId={shownLoadingId} onPlay={playIndexInQueue} />
           ) : (
           <TrackList
             ref={trackListRef}
             tracks={queue}
             currentId={playingTrack?.id}
+            loadingId={shownLoadingId}
             onPlay={playIndexInQueue}
             onEdit={(track) => setEditingTrackId(track.id)}
             canEdit={canEditTrack}
@@ -2139,6 +2190,7 @@ export default function App() {
       <PlayerBar
         track={playingTrack}
         isPlaying={isPlaying}
+        isLoading={shownLoadingId !== null}
         currentTime={currentTime}
         duration={audioRef.current?.duration || playingTrack?.durationSec || 0}
         volume={volume}
@@ -2199,6 +2251,9 @@ export default function App() {
         // or another app taking the audio, headset/lock-screen buttons — and
         // `isPlaying` would otherwise keep showing the old state.
         onPlay={() => setIsPlaying(true)}
+        // The song really started (or failed to): stop showing the spinner.
+        onPlaying={() => setLoading(null)}
+        onError={() => setLoading(null)}
         onPause={(e) => {
           const audio = e.currentTarget;
           // Not a real stop: a song reaching its end fires "pause" just before
@@ -2292,6 +2347,7 @@ export default function App() {
         <CarMode
           track={playingTrack}
           isPlaying={isPlaying}
+          isLoading={shownLoadingId !== null}
           shuffle={shuffle}
           repeatMode={repeatMode}
           playlists={playlists}

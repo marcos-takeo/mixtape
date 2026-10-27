@@ -29,6 +29,7 @@ import {
 export default function PlayerBar({
   track,
   isPlaying,
+  isLoading,
   currentTime,
   duration,
   volume,
@@ -317,8 +318,13 @@ export default function PlayerBar({
             <button onClick={onPrev} aria-label="Previous track">
               <SkipBackIcon />
             </button>
-            <button className="play-btn" onClick={onTogglePlay} aria-label={isPlaying ? "Pause" : "Play"}>
-              {isPlaying ? <PauseIcon /> : <PlayIcon />}
+            <button
+              className="play-btn"
+              onClick={onTogglePlay}
+              aria-label={isLoading ? "Loading song" : isPlaying ? "Pause" : "Play"}
+              aria-busy={isLoading || undefined}
+            >
+              {isLoading ? <span className="btn-spinner" aria-hidden="true" /> : isPlaying ? <PauseIcon /> : <PlayIcon />}
             </button>
             <button onClick={onNext} aria-label="Next track">
               <SkipForwardIcon />

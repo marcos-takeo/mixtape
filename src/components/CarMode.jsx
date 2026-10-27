@@ -38,6 +38,7 @@ import {
 export default function CarMode({
   track,
   isPlaying,
+  isLoading,
   shuffle,
   repeatMode,
   playlists,
@@ -367,9 +368,10 @@ export default function CarMode({
           <button
             className="car-btn car-btn-accent car-btn-big car-btn-play"
             onClick={onTogglePlay}
-            aria-label={isPlaying ? "Pause" : "Play"}
+            aria-label={isLoading ? "Loading song" : isPlaying ? "Pause" : "Play"}
+            aria-busy={isLoading || undefined}
           >
-            {isPlaying ? <PauseIcon /> : <PlayIcon />}
+            {isLoading ? <span className="btn-spinner" aria-hidden="true" /> : isPlaying ? <PauseIcon /> : <PlayIcon />}
           </button>
           <button className="car-btn car-btn-light car-btn-medium" onClick={onNext} aria-label="Next">
             <SkipForwardIcon />

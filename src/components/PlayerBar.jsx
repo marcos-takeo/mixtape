@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { formatDuration } from "../lib/id3.js";
 import {
   fetchLyricsForTrack,
@@ -26,6 +26,8 @@ import {
   QueueIcon,
 } from "./Icons.jsx";
 
+const LYRICS_UNAVAILABLE_MESSAGE = "Couldn't reach the lyrics service right now (it may be busy).";
+
 export default function PlayerBar({
   track,
   isPlaying,
@@ -52,6 +54,8 @@ export default function PlayerBar({
   const [expanded, setExpanded] = useState(false);
   const [lyrics, setLyrics] = useState(null); // undefined = loading, null = none found/not fetched
   const [lyricsError, setLyricsError] = useState("");
+  const trackIdRef = useRef(track?.id);
+  trackIdRef.current = track?.id;
   const [candidates, setCandidates] = useState(null); // null = picker closed, [] = loading/empty, [...] = results
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   // Whole-song timing adjustment for the synced lyrics (seconds): positive =
@@ -75,12 +79,26 @@ export default function PlayerBar({
         if (!cancelled) setLyrics(result);
       })
       .catch(() => {
-        if (!cancelled) setLyricsError("Couldn't fetch lyrics right now.");
+        if (!cancelled) setLyricsError(LYRICS_UNAVAILABLE_MESSAGE);
       });
     return () => {
       cancelled = true;
     };
   }, [expanded, track?.id]);
+
+  // "Try again" after the lyrics service couldn't be reached.
+  function handleRetryLyrics() {
+    const id = track.id;
+    setLyricsError("");
+    setLyrics(undefined);
+    fetchLyricsForTrack(track)
+      .then((result) => {
+        if (trackIdRef.current === id) setLyrics(result);
+      })
+      .catch(() => {
+        if (trackIdRef.current === id) setLyricsError(LYRICS_UNAVAILABLE_MESSAGE);
+      });
+  }
 
   async function handleTryAnotherMatch() {
     setCandidatesLoading(true);
@@ -89,7 +107,10 @@ export default function PlayerBar({
       const results = await searchLyricsCandidates(track);
       setCandidates(results);
     } catch {
-      setCandidates([]);
+      // The lyrics service couldn't be reached: say so (with "Try again")
+      // rather than showing an empty list of matches.
+      setCandidates(null);
+      setLyricsError(LYRICS_UNAVAILABLE_MESSAGE);
     } finally {
       setCandidatesLoading(false);
     }
@@ -119,7 +140,9 @@ export default function PlayerBar({
     await clearManualLyricsMatch(track);
     resetLyricsOffset();
     setLyrics(undefined);
-    fetchLyricsForTrack(track).then(setLyrics);
+    fetchLyricsForTrack(track)
+      .then(setLyrics)
+      .catch(() => setLyricsError(LYRICS_UNAVAILABLE_MESSAGE));
   }
 
   function offsetSummary() {
@@ -223,8 +246,15 @@ export default function PlayerBar({
                 </div>
               ) : (
                 <>
-                  {lyrics === undefined && <p className="lyrics-status">Loading lyrics…</p>}
-                  {lyricsError && <p className="error-text">{lyricsError}</p>}
+                  {lyrics === undefined && !lyricsError && <p className="lyrics-status">Loading lyrics…</p>}
+                  {lyricsError && (
+                    <p className="error-text">
+                      {lyricsError}{" "}
+                      <button className="link-btn" onClick={handleRetryLyrics}>
+                        Try again
+                      </button>
+                    </p>
+                  )}
                   {lyrics === null && !lyricsError && (
                     <p className="lyrics-status">No lyrics found for this track.</p>
                   )}

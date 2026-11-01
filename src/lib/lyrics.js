@@ -1,4 +1,5 @@
 import { resolveIsrc } from "./musicbrainz.js";
+import { fetchWithRetry } from "./retry.js";
 import {
   getLyricsOverride,
   putLyricsOverride,
@@ -15,21 +16,46 @@ function cacheKey(track) {
   return `${track.id}::${track.title}::${track.artist}::${track.durationSec || ""}`;
 }
 
+// Thrown when LRCLIB is temporarily unavailable (busy, restarting, no network)
+// even after a few tries. It is NOT an answer: "no lyrics" must only be
+// remembered when LRCLIB actually said so, otherwise a short outage would hide
+// a song's lyrics until the page is reloaded.
+export class LyricsUnavailableError extends Error {
+  constructor(detail) {
+    super(`The lyrics service is unavailable right now (${detail}).`);
+    this.name = "LyricsUnavailableError";
+  }
+}
+
+// One LRCLIB request. Returns the parsed JSON, or null when LRCLIB answered
+// that there's nothing (404 and other client errors); throws
+// LyricsUnavailableError when it couldn't be reached.
+async function lrclibRequest(path, params) {
+  let res;
+  try {
+    res = await fetchWithRetry(`${BASE}/${path}?${params}`);
+  } catch (err) {
+    throw new LyricsUnavailableError(err?.message || "network error");
+  }
+  if (res.ok) return res.json();
+  if (isTemporary(res.status)) throw new LyricsUnavailableError(`HTTP ${res.status}`);
+  return null;
+}
+
+function isTemporary(status) {
+  return status === 429 || status >= 500;
+}
+
 async function lrclibGet({ title, artist, album, durationSec }) {
   const params = new URLSearchParams({ track_name: title, artist_name: artist });
   if (album) params.set("album_name", album);
   if (durationSec) params.set("duration", String(Math.round(durationSec)));
-
-  const res = await fetch(`${BASE}/get?${params}`);
-  if (!res.ok) return null;
-  return res.json();
+  return lrclibRequest("get", params);
 }
 
 async function lrclibSearch({ title, artist, durationSec }) {
   const params = new URLSearchParams({ track_name: title, artist_name: artist });
-  const res = await fetch(`${BASE}/search?${params}`);
-  if (!res.ok) return null;
-  const results = await res.json();
+  const results = await lrclibRequest("search", params);
   if (!Array.isArray(results) || !results.length) return null;
 
   if (!durationSec) return results[0];
@@ -58,6 +84,10 @@ function normalize(data, resolvedVia) {
  * identifiers Spotify/Apple Music recordings share), then queries LRCLIB
  * with *that* — falling back to the track's own tags if there's no ISRC,
  * or MusicBrainz doesn't recognize it, or LRCLIB has nothing for it.
+ *
+ * Resolves to null only when LRCLIB really has no lyrics (that is remembered).
+ * Rejects with LyricsUnavailableError when LRCLIB couldn't be reached after a
+ * few tries; that is never remembered, so the next attempt asks again.
  */
 export async function fetchLyricsForTrack(track) {
   const key = cacheKey(track);
@@ -104,9 +134,7 @@ export async function fetchLyricsForTrack(track) {
  */
 export async function searchLyricsCandidates(track) {
   const params = new URLSearchParams({ track_name: track.title, artist_name: track.artist });
-  const res = await fetch(`${BASE}/search?${params}`);
-  if (!res.ok) return [];
-  const results = await res.json();
+  const results = await lrclibRequest("search", params);
   if (!Array.isArray(results)) return [];
   return results.slice(0, 8);
 }

@@ -110,6 +110,7 @@ export default function App() {
   // forgetAccount below, not with every driveConnections change.
   const [rememberedAccounts, setRememberedAccounts] = useState(() => getRememberedAccounts());
   const [driveError, setDriveError] = useState("");
+  const searchInputRef = useRef(null);
   const [notice, setNotice] = useState("");
   const [infoNotice, setInfoNotice] = useState(""); // a result worth telling the user (not an error)
   const [refreshingAccountId, setRefreshingAccountId] = useState(null);
@@ -464,6 +465,27 @@ export default function App() {
     audio.preservesPitch = true;
     if ("webkitPreservesPitch" in audio) audio.webkitPreservesPitch = true;
   }, [playbackRate, playingTrack?.objectUrl]);
+
+  // Keyboard shortcut: pressing F jumps to the search field (and selects what's
+  // in it, so typing replaces the previous search). Ignored while typing in a
+  // field, with Ctrl/Cmd/Alt held (browser shortcuts), or while a dialog is open.
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key.toLowerCase() !== "f") return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || e.defaultPrevented) return;
+      const el = e.target;
+      const tag = el?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) return;
+      if (document.querySelector('[aria-modal="true"], .editor-backdrop')) return;
+      const input = searchInputRef.current;
+      if (!input) return; // the search field only exists on the library / playlist pages
+      e.preventDefault();
+      input.focus();
+      input.select();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   // Safety net: never leave the spinner up forever if no "playing" event comes.
   useEffect(() => {
@@ -2108,6 +2130,8 @@ export default function App() {
               <input
                 type="search"
                 className="search-input"
+                ref={searchInputRef}
+                title="Press F to jump here"
                 placeholder="Search title, artist, or album…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}

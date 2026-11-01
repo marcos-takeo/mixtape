@@ -1,6 +1,13 @@
 import { resolveIsrc } from "./musicbrainz.js";
 import { fetchWithRetry } from "./retry.js";
 import {
+  buildLookupAttempts,
+  isPlaceholderArtist,
+  mergeNameVariants,
+  pickBestCandidate,
+  rankCandidates,
+} from "./lyricsQuery.js";
+import {
   getLyricsOverride,
   putLyricsOverride,
   deleteLyricsOverride,
@@ -53,15 +60,21 @@ async function lrclibGet({ title, artist, album, durationSec }) {
   return lrclibRequest("get", params);
 }
 
-async function lrclibSearch({ title, artist, durationSec }) {
-  const params = new URLSearchParams({ track_name: title, artist_name: artist });
+// LRCLIB search (by title/artist, or free text with `q`): a list of records.
+async function lrclibSearchList(params) {
   const results = await lrclibRequest("search", params);
-  if (!Array.isArray(results) || !results.length) return null;
+  return Array.isArray(results) ? results : [];
+}
 
-  if (!durationSec) return results[0];
-  return results.reduce((closest, r) =>
-    Math.abs((r.duration || 0) - durationSec) < Math.abs((closest.duration || 0) - durationSec) ? r : closest
-  );
+function attemptParams(attempt) {
+  const params = new URLSearchParams();
+  if (attempt.kind === "q") {
+    params.set("q", attempt.q);
+  } else {
+    params.set("track_name", attempt.title);
+    if (attempt.artist) params.set("artist_name", attempt.artist);
+  }
+  return params;
 }
 
 function normalize(data, resolvedVia) {
@@ -76,6 +89,36 @@ function normalize(data, resolvedVia) {
     duration: data.duration,
     resolvedVia,
   };
+}
+
+// Tags are often not what LRCLIB has ("... feat. X", "(Remastered)", "Artist -
+// Title" in the title field…), so lyrics are looked up in steps and the first
+// trustworthy answer wins:
+//   1. LRCLIB's exact lookup with the tags as they are;
+//   2. searches with cleaned-up title / main artist, the title alone, and
+//      free text (see buildLookupAttempts);
+// every search result is compared with the track (title, artist, running
+// time) so a loose search never hands back lyrics of a different song.
+async function findLyrics(track, metaList) {
+  const names = mergeNameVariants(metaList);
+  const primary = metaList[0];
+
+  // 1. Exact lookup.
+  if (primary.title && !isPlaceholderArtist(primary.artist)) {
+    const exact = await lrclibGet(primary);
+    if (exact && !exact.statusCode) return exact;
+  }
+
+  // 2. Searches, one after the other, stopping at the first good match. The
+  // first search uses the tags as written, so it's judged more leniently.
+  const attempts = buildLookupAttempts(metaList);
+  for (let i = 0; i < attempts.length; i++) {
+    const results = await lrclibSearchList(attemptParams(attempts[i]));
+    const thresholds = i === 0 && attempts[i].kind === "search" ? { titleMin: 0.7, artistMin: 0.5 } : undefined;
+    const match = pickBestCandidate(track, names, results, thresholds);
+    if (match) return match;
+  }
+  return null;
 }
 
 /**
@@ -100,26 +143,28 @@ export async function fetchLyricsForTrack(track) {
     return result;
   }
 
-  let queryMeta = { title: track.title, artist: track.artist, album: track.album, durationSec: track.durationSec };
+  // The song as its file is tagged, and (when the file has an ISRC) as
+  // MusicBrainz knows it. The latter is tried first: its names are the
+  // canonical ones.
+  const tagsMeta = { title: track.title, artist: track.artist, album: track.album, durationSec: track.durationSec };
+  const metaList = [tagsMeta];
   let resolvedVia = "tags";
 
   if (track.isrc) {
     const resolved = await resolveIsrc(track.isrc);
     if (resolved?.title && resolved?.artist) {
-      queryMeta = {
+      metaList.unshift({
         title: resolved.title,
         artist: resolved.artist,
         album: resolved.album || track.album,
         durationSec: resolved.durationSec || track.durationSec,
-      };
+      });
       resolvedVia = "isrc";
     }
   }
 
-  let data = await lrclibGet(queryMeta);
-  if (!data || data.statusCode) {
-    data = await lrclibSearch(queryMeta);
-  }
+  let data = await findLyrics(track, metaList);
+  if (!data && resolvedVia === "isrc") resolvedVia = "tags";
 
   const result = normalize(data, resolvedVia);
   cache.set(key, result);
@@ -133,10 +178,22 @@ export async function fetchLyricsForTrack(track) {
  * remix, a different album release, etc.
  */
 export async function searchLyricsCandidates(track) {
-  const params = new URLSearchParams({ track_name: track.title, artist_name: track.artist });
-  const results = await lrclibRequest("search", params);
-  if (!Array.isArray(results)) return [];
-  return results.slice(0, 8);
+  const tagsMeta = { title: track.title, artist: track.artist };
+  const names = mergeNameVariants([tagsMeta]);
+  const attempts = buildLookupAttempts([tagsMeta]);
+
+  // A few different searches, merged, so a song whose tags don't match
+  // exactly still gets a useful list (closest first).
+  const byId = new Map();
+  let requests = 0;
+  for (const attempt of attempts) {
+    if (byId.size >= 8 || requests >= 3) break;
+    requests++;
+    for (const r of await lrclibSearchList(attemptParams(attempt))) {
+      if (r?.id != null && !byId.has(r.id)) byId.set(r.id, r);
+    }
+  }
+  return rankCandidates(track, names, [...byId.values()]).slice(0, 8);
 }
 
 /** Locks in a manually-picked candidate for this track, persisted across reloads. */

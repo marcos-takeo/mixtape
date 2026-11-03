@@ -364,8 +364,27 @@ works with Supabase, Neon, or any hosted Postgres.
 
 If sync ever looks stuck, the sidebar's **Syncing… / Playlists synced /
 Playlist sync failed** line under your connected account is the thing
-to check first; a failed push just quietly retries the next time
-anything changes.
+to check first.
+
+**How saving works.** Edits are sent to the server about 0.8 seconds
+after the last change, **one request at a time**: if you keep editing while
+a save is still running, the newest state is sent once when it finishes.
+A save that hits a temporary error (a busy or briefly unreachable server)
+is retried automatically — up to three tries with growing pauses — before
+the red *Playlist sync failed* message appears, and a failed save is tried
+again at the next change. Saves of data the server already holds are
+skipped. On the server (`api/playlists.js`) a save is a single upsert plus
+one delete, wrapped in a transaction that takes a per-user lock, so two
+saves for the same account can never collide (earlier versions could fail
+with `duplicate key value violates unique constraint "playlists_pkey"` in
+the Vercel logs when saves overlapped).
+
+**If it still fails.** Open the Vercel project → Logs, filter for
+`/api/playlists` and look at the error of a failing request. Connection
+errors (`remaining connection slots`, `too many clients`, `Connection
+terminated`) mean the database's connection limit is being hit: use the
+provider's *pooled* connection string for `DATABASE_URL` (on Supabase,
+the **Transaction pooler**, port 6543) instead of the direct one.
 
 ## Library
 

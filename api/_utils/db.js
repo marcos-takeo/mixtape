@@ -16,7 +16,16 @@ export function getPool() {
       // chain `pg` won't validate out of the box; this matches the
       // connection snippet those providers themselves give you.
       ssl: { rejectUnauthorized: false },
+      // Each warm serverless instance keeps its own pool, and many instances
+      // can run at once, so keep each pool small (hosted Postgres allows only
+      // so many connections in total) and let idle ones go.
+      max: 3,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 8_000,
     });
+    // An idle connection the database dropped would otherwise surface as an
+    // unhandled 'error' event; the pool simply discards it and opens a new one.
+    pool.on("error", (err) => console.warn("Idle Postgres connection error:", err.message));
   }
   return pool;
 }

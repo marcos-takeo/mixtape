@@ -60,7 +60,7 @@ import {
   replaceAllPlaylists,
 } from "./lib/db.js";
 import { trackSearchScore } from "./lib/search.js";
-import { pullPlaylists, pushPlaylists } from "./lib/sync.js";
+import { playlistsSignature, pullPlaylists, pushPlaylists } from "./lib/sync.js";
 import { resolveVoiceIntent } from "./lib/voiceCommands.js";
 import { nextCarRate } from "./lib/playbackSpeed.js";
 import { seekTarget } from "./lib/seek.js";
@@ -153,6 +153,10 @@ export default function App() {
   // only runs once per sign-in, not on every token refresh.
   const [syncStatus, setSyncStatus] = useState("idle");
   const syncedAccountIdRef = useRef(null);
+  const playlistsRef = useRef([]); // latest playlists, for the push loop below
+  const pushInFlightRef = useRef(false);
+  const pushAgainRef = useRef(false);
+  const lastPushedSignatureRef = useRef(null); // what the server is known to hold
   // Google access tokens expire after ~1 hour. These keep the latest token
   // for each account reachable from callbacks (which may hold a stale
   // `driveConnections` from an earlier render), and make sure only one
@@ -278,9 +282,11 @@ export default function App() {
           const merged = local ? [...serverPlaylists, local] : serverPlaylists;
           await replaceAllPlaylists(merged);
           setPlaylists(merged);
+          lastPushedSignatureRef.current = playlistsSignature(serverPlaylists);
         } else {
           const toSeed = playlists.filter((p) => p.id !== LOCAL_FILES_PLAYLIST_ID);
           if (toSeed.length > 0) await pushPlaylists(primary.accessToken, toSeed);
+          lastPushedSignatureRef.current = playlistsSignature(toSeed);
         }
         setSyncStatus("synced");
       } catch (err) {
@@ -399,19 +405,48 @@ export default function App() {
   // Playlist sync, step 2: once the handshake above has run, push any
   // further local edits up after a short debounce (so a drag-reorder or a
   // burst of edits sends one request, not one per keystroke/tick).
+  playlistsRef.current = playlists;
+
+  // Pushes the latest playlists, one request at a time: while one is running,
+  // further changes only mark "push again when done" (and then the newest state
+  // is sent once). Overlapping pushes used to collide on the server.
+  async function pushLatestPlaylists() {
+    if (pushInFlightRef.current) {
+      pushAgainRef.current = true;
+      return;
+    }
+    pushInFlightRef.current = true;
+    try {
+      do {
+        pushAgainRef.current = false;
+        const primary = connectionsRef.current[0];
+        if (!primary || syncedAccountIdRef.current !== primary.id) return;
+        const toPush = playlistsRef.current.filter((p) => p.id !== LOCAL_FILES_PLAYLIST_ID);
+        const signature = playlistsSignature(toPush);
+        if (signature === lastPushedSignatureRef.current) {
+          setSyncStatus("synced"); // nothing new for the server
+          continue;
+        }
+        const token = await getValidToken(primary.id);
+        await pushPlaylists(token || primary.accessToken, toPush);
+        lastPushedSignatureRef.current = signature;
+        setSyncStatus("synced");
+      } while (pushAgainRef.current);
+    } catch (err) {
+      console.warn("Playlist sync (push) failed:", err);
+      setSyncStatus("error");
+    } finally {
+      pushInFlightRef.current = false;
+    }
+  }
+
+  // Playlist sync, step 2: once the handshake above has run, push any
+  // further local edits up after a short debounce (so a drag-reorder or a
+  // burst of edits sends one request, not one per keystroke/tick).
   useEffect(() => {
     const primary = driveConnections[0];
     if (!primary || syncedAccountIdRef.current !== primary.id) return;
-    const t = setTimeout(() => {
-      const toPush = playlists.filter((p) => p.id !== LOCAL_FILES_PLAYLIST_ID);
-      getValidToken(primary.id)
-        .then((token) => pushPlaylists(token || primary.accessToken, toPush))
-        .then(() => setSyncStatus("synced"))
-        .catch((err) => {
-          console.warn("Playlist sync (push) failed:", err);
-          setSyncStatus("error");
-        });
-    }, 800);
+    const t = setTimeout(pushLatestPlaylists, 800);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playlists]);

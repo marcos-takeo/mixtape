@@ -22,6 +22,20 @@ export default async function handler(req, res) {
     return;
   }
 
+  try {
+    await handleAuthenticated(req, res, identity);
+  } catch (err) {
+    // Anything unexpected (database unreachable, connection dropped…): log the
+    // real reason for the Vercel logs, and give the client a readable error
+    // instead of the platform's bare 500 page. The client retries these.
+    console.error("api/playlists failed:", err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Couldn't reach the playlist database. Please try again." });
+    }
+  }
+}
+
+async function handleAuthenticated(req, res, identity) {
   const pool = getPool();
 
   // Every request upserts the user row, so a brand-new Google account is
@@ -65,31 +79,81 @@ export default async function handler(req, res) {
       }
     }
 
-    const client = await pool.connect();
-    try {
-      await client.query("begin");
-      // Full replace, scoped to this user only (the where clause on every
-      // statement is what keeps one user's sync from ever touching
-      // another's rows).
-      await client.query("delete from playlists where google_sub = $1", [identity.sub]);
-      for (const p of playlists) {
-        await client.query(
-          `insert into playlists (id, google_sub, name, track_ids, pinned, order_index)
-           values ($1, $2, $3, $4, $5, $6)`,
-          [p.id, identity.sub, p.name, JSON.stringify(p.trackIds || []), !!p.pinned, p.order ?? 0]
-        );
-      }
-      await client.query("commit");
-    } catch (err) {
-      await client.query("rollback");
-      throw err;
-    } finally {
-      client.release();
-    }
+    await replacePlaylists(pool, identity.sub, toRows(playlists));
     res.status(200).json({ ok: true });
     return;
   }
 
   res.setHeader("Allow", "GET, PUT");
   res.status(405).json({ error: "Method not allowed" });
+}
+
+// Normalised rows for the database. If the same id appears twice the last one
+// wins (the upsert below can't touch one row twice in a single statement).
+function toRows(playlists) {
+  const byId = new Map();
+  for (const p of playlists) {
+    byId.set(p.id, {
+      id: p.id,
+      name: p.name,
+      trackIds: Array.isArray(p.trackIds) ? p.trackIds : [],
+      pinned: !!p.pinned,
+      order: Number.isFinite(p.order) ? Math.trunc(p.order) : 0,
+    });
+  }
+  return [...byId.values()];
+}
+
+// Replaces this user's playlists with `rows`, safely even when two saves for
+// the same user arrive at the same time (the client sends one after another
+// as you edit, and a slow one can still be running when the next starts).
+//
+// Before, a save deleted every row and inserted them again one by one. Two
+// overlapping saves each deleted rows they couldn't yet see the other one
+// inserting, and the second then failed with "duplicate key … playlists_pkey".
+// Now:
+//   * saves for the same user take turns (a transaction-level advisory lock,
+//     released automatically on commit/rollback);
+//   * everything is written with ONE upsert statement and ONE delete of the
+//     playlists that are gone, so a save is a couple of round trips instead of
+//     one per playlist (much faster, so much less likely to overlap at all).
+async function replacePlaylists(pool, googleSub, rows) {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    await client.query("select pg_advisory_xact_lock(hashtext($1))", [googleSub]);
+
+    if (rows.length > 0) {
+      await client.query(
+        `insert into playlists (id, google_sub, name, track_ids, pinned, order_index)
+         select x.id, $1, x.name, coalesce(x."trackIds", '[]'::jsonb), coalesce(x.pinned, false), coalesce(x."order", 0)
+         from jsonb_to_recordset($2::jsonb)
+              as x(id text, name text, "trackIds" jsonb, pinned boolean, "order" integer)
+         on conflict (google_sub, id) do update set
+           name = excluded.name,
+           track_ids = excluded.track_ids,
+           pinned = excluded.pinned,
+           order_index = excluded.order_index,
+           updated_at = now()`,
+        [googleSub, JSON.stringify(rows)]
+      );
+    }
+
+    // Playlists the client no longer has (all of them, when it sent none).
+    await client.query("delete from playlists where google_sub = $1 and not (id = any($2::text[]))", [
+      googleSub,
+      rows.map((r) => r.id),
+    ]);
+
+    await client.query("commit");
+  } catch (err) {
+    try {
+      await client.query("rollback");
+    } catch {
+      // The connection itself is gone; releasing it below discards it.
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
 }

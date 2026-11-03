@@ -6,6 +6,8 @@
 // full picture, including what this deliberately does NOT handle yet
 // (offline queueing, multi-device edit conflicts, playlist artwork).
 
+import { fetchWithRetry } from "./retry.js";
+
 const API_BASE = "/api";
 
 function toWireFormat(playlist) {
@@ -37,16 +39,28 @@ export async function pullPlaylists(accessToken) {
  * JSON API) — only id/name/track order/pinned/order survive a sync.
  */
 export async function pushPlaylists(accessToken, playlists) {
-  const res = await fetch(`${API_BASE}/playlists`, {
+  // A push replaces the whole set, so repeating one is harmless — which makes
+  // it safe to retry automatically (a few tries, with growing pauses) when the
+  // server answers with a temporary error or can't be reached.
+  const res = await fetchWithRetry(`${API_BASE}/playlists`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify({ playlists: playlists.map(toWireFormat) }),
-  });
+  }, { attempts: 3, baseDelayMs: 1000 });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `Sync push failed (${res.status})`);
   }
+}
+
+/**
+ * A fingerprint of what a push would send, to skip pushes of data the server
+ * already has (the playlists state changes whenever anything touches it, often
+ * without any change that syncs).
+ */
+export function playlistsSignature(playlists) {
+  return JSON.stringify(playlists.map(toWireFormat));
 }

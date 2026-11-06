@@ -1,4 +1,4 @@
-import { verifyGoogleAccessToken } from "./_utils/auth.js";
+import { ServerConfigError, verifyGoogleAccessToken } from "./_utils/auth.js";
 import { getPool } from "./_utils/db.js";
 
 // GET  /api/playlists  -> { playlists: [...] } for the signed-in user
@@ -18,6 +18,12 @@ export default async function handler(req, res) {
   try {
     identity = await verifyGoogleAccessToken(accessToken);
   } catch (err) {
+    if (err instanceof ServerConfigError) {
+      // Not the caller's fault: say so (500), and log it where the owner looks.
+      console.error(err.message);
+      res.status(500).json({ error: err.message });
+      return;
+    }
     res.status(401).json({ error: err.message || "Invalid or expired token" });
     return;
   }

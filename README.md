@@ -343,7 +343,14 @@ works with Supabase, Neon, or any hosted Postgres.
    Development for each — narrowing this to Production-only means a
    branch's preview deployment won't have them):
    - `DATABASE_URL` — the full connection string from step 3
-   - `GOOGLE_CLIENT_ID` — the client ID from step 4
+   - `GOOGLE_CLIENT_ID` — the client ID from step 4. **Required:** the API
+     uses it to confirm that every sign-in token was issued to *this* app
+     (and not to some other app whose token could be replayed here). If it
+     is missing, `/api/playlists` refuses to work and answers every request
+     with a 500 whose message says so (also written to the Vercel logs:
+     "Server misconfigured: the GOOGLE_CLIENT_ID environment variable is not
+     set") — in the app you'll see *Playlist sync failed*. Add the variable
+     for Production *and* Preview, then redeploy.
    - `VITE_GOOGLE_CLIENT_ID` — the *same* client ID from step 4, again,
      under this second name. This one isn't new to sync — it's what
      "Connect Google Drive" has always needed (see Google Drive setup,

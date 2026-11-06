@@ -467,6 +467,12 @@ button {
   margin-bottom: 16px;
 }
 
+.search-count {
+  color: var(--text-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .search-input {
   background: var(--bg-elevated);
   border: 1px solid var(--divider);
@@ -642,6 +648,14 @@ button {
   white-space: nowrap;
 }
 
+.track-account {
+  font-size: 13px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .track-source {
   display: flex;
   align-items: center;
@@ -671,6 +685,11 @@ button {
 
 .track-list.hide-col-source .col-source,
 .track-list.hide-col-source .track-source {
+  display: none;
+}
+
+.track-list.hide-col-account .col-account,
+.track-list.hide-col-account .track-account {
   display: none;
 }
 
@@ -1647,7 +1666,9 @@ input[type="range"]::-moz-range-thumb {
   }
 
   .col-file,
-  .track-filename {
+  .track-filename,
+  .col-account,
+  .track-account {
     display: none;
   }
 

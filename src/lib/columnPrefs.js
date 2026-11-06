@@ -4,7 +4,7 @@
 //
 // Row actions (edit, add to playlist, remove) are columns of their own, so
 // they can be switched on and off like any other column.
-export const DATA_COLUMNS = ["artist", "album", "source", "file", "duration"];
+export const DATA_COLUMNS = ["artist", "album", "source", "account", "file", "duration"];
 export const ACTION_COLUMNS = ["edit", "playlist", "queue", "remove"];
 export const OPTIONAL_COLUMNS = [...DATA_COLUMNS, ...ACTION_COLUMNS];
 
@@ -12,6 +12,7 @@ export const COLUMN_LABELS = {
   artist: "Artist",
   album: "Album",
   source: "Source",
+  account: "Cloud account",
   file: "File name",
   duration: "Length",
   edit: "Edit",
@@ -21,8 +22,12 @@ export const COLUMN_LABELS = {
 };
 
 // v1 saved only the data columns (the actions were one fixed column). v2
-// includes the action columns, hence the separate key.
+// added the action columns, v3 the "cloud account" column — hence the
+// separate keys.
 function storageKey(playlistId) {
+  return `mixtape:columns:v3:${playlistId || "library"}`;
+}
+function v2StorageKey(playlistId) {
   return `mixtape:columns:v2:${playlistId || "library"}`;
 }
 function legacyStorageKey(playlistId) {
@@ -44,10 +49,18 @@ export function loadColumnPrefs(playlistId) {
   const saved = readList(storageKey(playlistId));
   if (saved) return OPTIONAL_COLUMNS.filter((c) => saved.includes(c));
 
+  // Settings saved before the "cloud account" column existed: keep the user's
+  // choices and show the new column once (it can be switched off like any
+  // other, which saves under the current key).
+  const v2 = readList(v2StorageKey(playlistId));
+  if (v2) return OPTIONAL_COLUMNS.filter((c) => c === "account" || v2.includes(c));
+
   // Settings saved before the action columns existed: keep the user's choice
   // for the data columns, and show the actions (they were always visible).
   const legacy = readList(legacyStorageKey(playlistId));
-  if (legacy) return OPTIONAL_COLUMNS.filter((c) => ACTION_COLUMNS.includes(c) || legacy.includes(c));
+  if (legacy) {
+    return OPTIONAL_COLUMNS.filter((c) => c === "account" || ACTION_COLUMNS.includes(c) || legacy.includes(c));
+  }
 
   return [...OPTIONAL_COLUMNS];
 }

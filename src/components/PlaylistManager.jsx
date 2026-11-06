@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useEscapeClose } from "../lib/escapeStack.js";
 import { TrashIcon } from "./Icons.jsx";
 import { getOrderedPlaylists } from "../lib/playlistOrder.js";
 
@@ -23,6 +24,9 @@ function EditPlaylistModal({ playlist, onClose, onSave }) {
   const [image, setImage] = useState(null);
   const [removeImage, setRemoveImage] = useState(false);
   const [saving, setSaving] = useState(false);
+  useEscapeClose(() => {
+    if (!saving) onClose();
+  });
   const [previewUrl, setPreviewUrl] = useState(null);
 
   useEffect(() => {

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEscapeClose } from "../lib/escapeStack.js";
 import {
   CarIcon,
   CloseIcon,
@@ -86,15 +87,10 @@ export default function CarMode({
   const orderedPlaylists = useMemo(() => getOrderedPlaylists(playlists), [playlists]);
 
   // Escape: playlist screen -> main screen -> leave car mode.
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key !== "Escape") return;
-      if (view !== "main") setView("main");
-      else onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [view, onClose]);
+  useEscapeClose(() => {
+    if (view !== "main") setView("main");
+    else onClose();
+  });
 
   // Move focus into the overlay whenever the screen changes so keyboard /
   // screen-reader users don't stay "behind" it.

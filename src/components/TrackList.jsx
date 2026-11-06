@@ -14,13 +14,14 @@ const ROW_HEIGHT = 54;
 // hidden and always included.
 const BREAKPOINT_LAYOUTS = {
   desktop: {
-    order: ["art", "title", "artist", "album", "source", "file", "duration", "edit", "playlist", "queue", "remove"],
+    order: ["art", "title", "artist", "album", "source", "account", "file", "duration", "edit", "playlist", "queue", "remove"],
     width: {
       art: "44px",
       title: "1.3fr",
       artist: "1fr",
       album: "1fr",
       source: "36px",
+      account: "minmax(0, 1fr)",
       file: "1fr",
       duration: "64px",
       edit: "32px",
@@ -44,7 +45,7 @@ const BREAKPOINT_LAYOUTS = {
       queue: "30px",
       remove: "30px",
     },
-    forcedHidden: ["file"],
+    forcedHidden: ["file", "account"],
   },
   mobilePortrait: {
     order: ["art", "title", "artist", "source", "edit", "playlist", "queue", "remove"],
@@ -58,7 +59,7 @@ const BREAKPOINT_LAYOUTS = {
       queue: "30px",
       remove: "30px",
     },
-    forcedHidden: ["file", "album", "duration"],
+    forcedHidden: ["file", "album", "duration", "account"],
   },
 };
 
@@ -153,6 +154,9 @@ function Row({
       <span className="track-album">{track.album || "—"}</span>
       <span className="track-source" title={track.source === "drive" ? "Google Drive" : "Local file"}>
         {track.source === "drive" ? <CloudIcon width={16} height={16} /> : <LocalFileIcon width={16} height={16} />}
+      </span>
+      <span className="track-account" title={track.source === "drive" ? track.connectionLabel || "" : "Local file"}>
+        {track.source === "drive" ? track.connectionLabel || "—" : "—"}
       </span>
       <span className="track-filename">{track.fileName || "—"}</span>
       <span className="track-duration">{formatDuration(track.durationSec)}</span>
@@ -329,6 +333,9 @@ const TrackList = forwardRef(function TrackList(
           Album {sortArrow("album")}
         </button>
         <span className="col-source" />
+        <button className="col-sort col-account" onClick={() => onSortChange("connectionLabel")}>
+          Cloud account {sortArrow("connectionLabel")}
+        </button>
         <span className="col-file">File</span>
         <span className="col-right col-duration">Length</span>
         <span className="col-edit" />

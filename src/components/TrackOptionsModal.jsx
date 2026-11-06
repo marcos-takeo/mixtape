@@ -1,4 +1,5 @@
-import React, { useEffect } from "react";
+import React from "react";
+import { useEscapeClose } from "../lib/escapeStack.js";
 import { DownloadIcon, SpeedIcon, SkipIcon, BookmarkIcon } from "./Icons.jsx";
 import { PLAYBACK_RATES, formatRate } from "../lib/playbackSpeed.js";
 import { SEEK_STEPS } from "../lib/seek.js";
@@ -21,13 +22,7 @@ export default function TrackOptionsModal({
   onDeleteBookmark,
   onClose,
 }) {
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscapeClose(onClose);
 
   return (
     <div className="editor-backdrop" onClick={onClose}>

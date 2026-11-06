@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useEscapeClose } from "../lib/escapeStack.js";
 
 export default function EditTagsModal({
   track,
@@ -14,6 +15,9 @@ export default function EditTagsModal({
   const [newArt, setNewArt] = useState(null); // File | null
   const [removeArt, setRemoveArt] = useState(false);
   const [saving, setSaving] = useState(false);
+  useEscapeClose(() => {
+    if (!saving) onClose();
+  });
   const [artworkLoading, setArtworkLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");

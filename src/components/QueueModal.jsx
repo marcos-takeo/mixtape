@@ -1,4 +1,5 @@
-import React, { useEffect } from "react";
+import React from "react";
+import { useEscapeClose } from "../lib/escapeStack.js";
 import { QueueIcon } from "./Icons.jsx";
 
 /**
@@ -8,13 +9,7 @@ import { QueueIcon } from "./Icons.jsx";
  * direct access to its own icon and modal instead.
  */
 export default function QueueModal({ tracks, playQueue, onRemoveFromQueue, onReorderQueue, onClearQueue, onClose }) {
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscapeClose(onClose);
 
   return (
     <div className="editor-backdrop" onClick={onClose}>

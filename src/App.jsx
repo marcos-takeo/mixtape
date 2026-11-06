@@ -27,6 +27,7 @@ import {
 } from "./lib/googleDrive.js";
 import ColumnSettings from "./components/ColumnSettings.jsx";
 import AlbumGrid from "./components/AlbumGrid.jsx";
+import { useEscapeClose } from "./lib/escapeStack.js";
 import { mapWithConcurrency } from "./lib/pool.js";
 import ViewToggle from "./components/ViewToggle.jsx";
 import { VIEW_ALBUMS, loadViewMode, saveViewMode } from "./lib/viewPrefs.js";
@@ -199,6 +200,11 @@ export default function App() {
   }, []);
   const [sidebarOpen, setSidebarOpen] = useState(
     typeof window !== "undefined" ? window.innerWidth > 720 : true
+  );
+  // On a phone the sidebar slides over the page like a dialog: Escape closes it.
+  useEscapeClose(
+    () => setSidebarOpen(false),
+    sidebarOpen && typeof window !== "undefined" && window.innerWidth <= 720
   );
 
   // Mobile-portrait Car mode shortcut button: shown only in that orientation,
@@ -2175,6 +2181,11 @@ export default function App() {
                 <button className="link-btn" onClick={() => setSearchQuery("")}>
                   Clear
                 </button>
+              )}
+              {searchQuery.trim() && debouncedSearchQuery.trim() && (
+                <span className="search-count" role="status" aria-live="polite">
+                  {queue.length === 0 ? "No results" : queue.length === 1 ? "1 result" : `${queue.length} results`}
+                </span>
               )}
             </div>
           ) : null}

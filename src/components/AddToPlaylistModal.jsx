@@ -1,6 +1,8 @@
 import React, { useState } from "react";
+import { useEscapeClose } from "../lib/escapeStack.js";
 
 export default function AddToPlaylistModal({ track, playlists, onToggle, onCreatePlaylist, onClose }) {
+  useEscapeClose(onClose);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const [filter, setFilter] = useState("");

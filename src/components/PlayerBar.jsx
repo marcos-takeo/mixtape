@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useEscapeClose } from "../lib/escapeStack.js";
 import { formatDuration } from "../lib/id3.js";
 import {
   fetchLyricsForTrack,
@@ -54,6 +55,7 @@ export default function PlayerBar({
   const [expanded, setExpanded] = useState(false);
   const [lyrics, setLyrics] = useState(null); // undefined = loading, null = none found/not fetched
   const [lyricsError, setLyricsError] = useState("");
+  useEscapeClose(() => setExpanded(false), expanded && Boolean(track));
   const trackIdRef = useRef(track?.id);
   trackIdRef.current = track?.id;
   const [candidates, setCandidates] = useState(null); // null = picker closed, [] = loading/empty, [...] = results

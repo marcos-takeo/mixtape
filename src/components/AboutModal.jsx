@@ -1,6 +1,8 @@
 import React from "react";
+import { useEscapeClose } from "../lib/escapeStack.js";
 
 export default function AboutModal({ onClose }) {
+  useEscapeClose(onClose);
   return (
     <div className="editor-backdrop" onClick={onClose}>
       <div className="editor-modal about-modal" onClick={(e) => e.stopPropagation()}>

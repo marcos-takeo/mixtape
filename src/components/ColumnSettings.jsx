@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useEscapeClose } from "../lib/escapeStack.js";
 import { ColumnsIcon } from "./Icons.jsx";
 import { DATA_COLUMNS, ACTION_COLUMNS, COLUMN_LABELS } from "../lib/columnPrefs.js";
 
@@ -16,16 +17,11 @@ export default function ColumnSettings({ visibleColumns, onToggle, disabled = fa
     function handlePointerDown(e) {
       if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
     }
-    function handleKeyDown(e) {
-      if (e.key === "Escape") setOpen(false);
-    }
     document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
+    return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [open]);
+
+  useEscapeClose(() => setOpen(false), open);
 
   function renderList(columns) {
     return (

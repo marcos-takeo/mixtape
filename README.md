@@ -54,6 +54,25 @@ play/pause button correctly flips back to "play" when this happens,
 rather than continuing to show "pause" for audio that's no longer
 actually playing.
 
+**Edits made on another device (Drive songs).** Each browser keeps its own
+copy of every song's details (title, artist, album, cover) — only
+*playlists* are synced through the server. When you edit a Drive song's
+tags or cover on one device, the new tag is written into the file in Drive,
+and the app records the file's content version (Drive's MD5 checksum, which
+it also asks for when it uploads the edit, so it recognises its own change).
+On every account scan the other devices compare each song's current Drive
+version with the one they stored; if it differs, the song's details are
+re-read from the file (the same small partial download used for new songs —
+retried with a bigger slice, up to 8 MB, when a large embedded cover is
+cut off) and the list updates **without having to play the song**. Songs
+stored by an older version have no recorded version, so they're judged by
+whether Drive modified the file after this device last read it. Two ways
+to get this right away: the account's **refresh (⟳)** button, which
+reports how many songs were "updated (changed elsewhere)", or simply
+playing the song, which reads the whole file. The automatic scan on page
+load is throttled to once per 15 minutes (see *Performance*), so without
+the ⟳ button a change can take up to that long to appear.
+
 ## Search
 
 Search looks at title, artist and album, and ignores punctuation, accents and
@@ -600,7 +619,8 @@ Three changes specifically target libraries in the 1000+ track range:
   "Connect"/"+ Add account" click always forces a fresh scan regardless,
   since that's a deliberate action. At smaller library sizes this
   probably wasn't noticeable; at 1000+ tracks spread across Drive, a
-  full rescan (plus a partial download + tag parse for anything new) on
+  full rescan (plus a partial download + tag parse for anything new or
+  changed since the last read — see *Editing tags*) on
   every single page load was a real, separate cost from the rendering
   and search issues above.
 

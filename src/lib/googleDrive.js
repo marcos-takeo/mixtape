@@ -316,7 +316,7 @@ export async function listDriveFolder(accessToken, folderId = "root") {
   do {
     const params = new URLSearchParams({
       q,
-      fields: "nextPageToken, files(id,name,mimeType,size)",
+      fields: "nextPageToken, files(id,name,mimeType,size,md5Checksum,modifiedTime)",
       pageSize: "1000",
       orderBy: "folder,name",
       spaces: "drive",
@@ -339,6 +339,8 @@ export async function listDriveFolder(accessToken, folderId = "root") {
     name: f.name,
     isFolder: f.mimeType === "application/vnd.google-apps.folder",
     sizeBytes: f.size ? Number(f.size) : null,
+    md5Checksum: f.md5Checksum || null,
+    modifiedTime: f.modifiedTime || null,
   }));
 }
 
@@ -350,7 +352,7 @@ export async function listAllAudioFiles(accessToken) {
   do {
     const params = new URLSearchParams({
       q: "mimeType='audio/mpeg' and trashed=false",
-      fields: "nextPageToken, files(id,name,size)",
+      fields: "nextPageToken, files(id,name,size,md5Checksum,modifiedTime)",
       pageSize: "1000",
       spaces: "drive",
     });
@@ -371,7 +373,21 @@ export async function listAllAudioFiles(accessToken) {
     id: f.id,
     name: f.name,
     sizeBytes: f.size ? Number(f.size) : null,
+    md5Checksum: f.md5Checksum || null,
+    modifiedTime: f.modifiedTime || null,
   }));
+}
+
+/**
+ * A short string that changes when a Drive file's content changes: its MD5
+ * checksum, or failing that its last-modified time. Used to notice that a song
+ * was edited elsewhere (new tags / cover art written on another device), so
+ * this device re-reads its details. Null when Drive gave neither.
+ */
+export function driveContentVersion(file) {
+  if (file?.md5Checksum) return `md5:${file.md5Checksum}`;
+  if (file?.modifiedTime) return `mt:${file.modifiedTime}`;
+  return null;
 }
 
 export async function fetchDriveFileBlob(accessToken, fileId) {
@@ -452,7 +468,9 @@ async function isRetryableDriveResponse(res) {
 /** Overwrites a Drive file's content in place (same file ID, new bytes) — needs the full "drive" scope. */
 export async function updateDriveFileContent(accessToken, fileId, blob) {
   const res = await fetch(
-    `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+    // Ask for the new checksum back, so the app can recognise its own edit
+    // later and not mistake it for a change made elsewhere.
+    `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=id,md5Checksum,modifiedTime`,
     {
       method: "PATCH",
       headers: {

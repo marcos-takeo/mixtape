@@ -24,11 +24,13 @@ import {
   waitForGoogleIdentity,
   getTokenExpiry,
   isTokenStale,
+  driveContentVersion,
 } from "./lib/googleDrive.js";
 import ColumnSettings from "./components/ColumnSettings.jsx";
 import AlbumGrid from "./components/AlbumGrid.jsx";
 import { useEscapeClose } from "./lib/escapeStack.js";
 import { mapWithConcurrency } from "./lib/pool.js";
+import { driveFileChanged, isDegradedTags } from "./lib/driveVersion.js";
 import ViewToggle from "./components/ViewToggle.jsx";
 import { VIEW_ALBUMS, loadViewMode, saveViewMode } from "./lib/viewPrefs.js";
 import { loadColumnPrefs, saveColumnPrefs } from "./lib/columnPrefs.js";
@@ -917,7 +919,18 @@ export default function App() {
   async function addDriveTrackAndTag(f, connection) {
     const id = `drive:${f.id}`;
     const existing = persistedMetaRef.current.get(id);
-    if (existing && !needsDriveTagRepair(existing)) return;
+    const version = driveContentVersion(f);
+    const changed = Boolean(existing) && driveFileChanged(existing, f);
+    if (existing && !changed && !needsDriveTagRepair(existing)) {
+      // Unchanged. A song stored before versions were tracked gets its current
+      // version recorded, so later comparisons are exact.
+      if (version && !existing.driveVersion) {
+        const stamped = { ...existing, driveVersion: version };
+        persistedMetaRef.current.set(id, stamped);
+        putTrack(stamped).catch(() => {});
+      }
+      return;
+    }
     if (driveTagReadsInFlight.current.has(id)) return;
     driveTagReadsInFlight.current.add(id);
 
@@ -939,6 +952,7 @@ export default function App() {
         durationSec: null,
         artworkBlob: null,
         order: nextOrder(),
+        driveVersion: version || undefined,
         updatedAt: Date.now(),
       };
       persistedMetaRef.current.set(id, base);
@@ -947,8 +961,23 @@ export default function App() {
     }
 
     try {
-      const partialBlob = await fetchDriveFileRange(connection.accessToken, f.id);
-      const tags = await readTags(partialBlob, f.name, f.sizeBytes);
+      let partialBlob = await fetchDriveFileRange(connection.accessToken, f.id);
+      let tags = await readTags(partialBlob, f.name, f.sizeBytes);
+      // The first megabyte can be too little when the file has a large cover
+      // embedded: try again with a bigger slice before giving up on the tags.
+      if (repairing && isDegradedTags(tags)) {
+        partialBlob = await fetchDriveFileRange(connection.accessToken, f.id, 8_000_000);
+        tags = await readTags(partialBlob, f.name, f.sizeBytes);
+      }
+      if (repairing && changed && !needsDriveTagRepair(existing) && isDegradedTags(tags)) {
+        // Unreadable even so. Keep the details the library already has (they're
+        // refreshed when the song is played and its whole file is read), and
+        // remember this version so every sync doesn't try again.
+        const kept = { ...existing, driveVersion: version || existing.driveVersion, tagsFailed: false };
+        persistedMetaRef.current.set(id, kept);
+        await putTrack(kept);
+        return;
+      }
       const record = {
         ...base,
         title: tags.title,
@@ -959,6 +988,7 @@ export default function App() {
         durationSec: tags.durationSec,
         artworkBlob: tags.artworkBlob || null,
         tagsFailed: false,
+        driveVersion: version || base.driveVersion,
         updatedAt: Date.now(),
       };
       persistedMetaRef.current.set(id, record);
@@ -969,6 +999,7 @@ export default function App() {
           if (t.id !== id) return t;
           // A song that's already listed (and maybe playing) only gets its tags
           // updated; its playback state is left alone.
+          if (repairing && t.artworkUrl && t.artworkUrl !== fresh.artworkUrl) URL.revokeObjectURL(t.artworkUrl);
           return repairing
             ? {
                 ...t,
@@ -1165,6 +1196,11 @@ export default function App() {
 
       const liveIds = new Set(files.map((f) => `drive:${f.id}`));
       const added = files.filter((f) => !persistedMetaRef.current.has(`drive:${f.id}`)).length;
+      // Songs edited elsewhere (tags / cover art) or whose details couldn't be read before.
+      const updated = files.filter((f) => {
+        const existing = persistedMetaRef.current.get(`drive:${f.id}`);
+        return existing && (driveFileChanged(existing, f) || needsDriveTagRepair(existing));
+      }).length;
       const staleIds = [...persistedMetaRef.current.values()]
         .filter((r) => r.source === "drive" && r.connectionId === connection.id && !liveIds.has(r.id))
         .map((r) => r.id);
@@ -1189,6 +1225,7 @@ export default function App() {
 
       const parts = [];
       parts.push(added ? `${added} new song${added === 1 ? "" : "s"} added` : "no new songs");
+      if (updated) parts.push(`${updated} updated (changed elsewhere)`);
       if (removed) parts.push(`${removed} removed (no longer in Drive)`);
       if (kept) parts.push(`${kept} missing song${kept === 1 ? "" : "s"} kept`);
       setInfoNotice(`Refreshed ${connection.label}: ${parts.join(", ")}.`);
@@ -1273,7 +1310,7 @@ export default function App() {
         pictureBlob,
       });
 
-      await withDriveToken(connection.id, (token) =>
+      const saved = await withDriveToken(connection.id, (token) =>
         updateDriveFileContent(token, track.driveId, newAudioBlob)
       );
       const objectUrl = URL.createObjectURL(newAudioBlob);
@@ -1294,6 +1331,9 @@ export default function App() {
         artist: fields.artist,
         album: fields.album,
         artworkBlob: pictureBlob,
+        // The version of the file we just uploaded, so the next sync doesn't
+        // mistake this device's own edit for one made elsewhere.
+        driveVersion: driveContentVersion(saved) || undefined,
         updatedAt: Date.now(),
       };
       persistedMetaRef.current.set(track.id, updatedRecord);

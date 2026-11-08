@@ -1853,6 +1853,17 @@ input[type="range"]::-moz-range-thumb {
   margin-bottom: 4px;
 }
 
+.settings-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.settings-link.active {
+  color: var(--accent);
+}
+
 .about-link {
   display: flex;
   align-items: center;
@@ -3041,4 +3052,159 @@ button.playlist-manager-name:hover {
   justify-content: center;
   padding: 0;
   touch-action: manipulation;
+}
+
+
+/* ---------- Settings page ---------- */
+
+.settings-page {
+  max-width: 620px;
+  padding: 4px 4px 40px;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.settings-section {
+  border-top: 1px solid var(--divider);
+  padding-top: 20px;
+}
+
+.settings-heading {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.settings-help,
+.settings-note {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+
+.settings-note {
+  margin-top: 14px;
+  margin-bottom: 8px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.settings-label {
+  font-size: 15px;
+}
+
+.settings-value {
+  color: var(--accent);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-block {
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.settings-block.disabled {
+  opacity: 0.45;
+}
+
+/* On / off switch */
+.switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 52px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--divider);
+  border-radius: 15px;
+  background: var(--bg-hover);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.switch.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: transform 0.15s;
+}
+
+.switch.on .switch-knob {
+  transform: translateX(22px);
+  background: #000;
+}
+
+.switch:focus-visible,
+.preset-btn:focus-visible,
+.settings-range:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.preset-btn {
+  min-height: 40px;
+  padding: 8px 16px;
+  border: 1px solid var(--divider);
+  border-radius: 20px;
+  background: none;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.preset-btn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.preset-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000;
+}
+
+.preset-btn:disabled {
+  cursor: default;
+}
+
+.preset-lufs {
+  opacity: 0.7;
+  font-size: 12px;
+  margin-left: 4px;
+}
+
+.settings-range {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.settings-scale {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-top: 2px;
 }

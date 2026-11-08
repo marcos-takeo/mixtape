@@ -550,6 +550,52 @@ since it was tuned to the old version's timing. Removing a song from the
 library (or clearing the library) deletes its saved offset and any manually
 picked lyrics match along with it.
 
+## Settings and volume matching
+
+**Settings** (sidebar, under *Car mode*) is a page for app-wide options. They
+are kept on the device you change them on (each browser has its own copy).
+Right now it has one section.
+
+**Volume matching** makes every song play at about the same loudness, so you
+don't have to reach for the volume control when a quietly mastered song is
+followed by a loud one. It is **off by default**; the page has an on/off
+switch and a **target loudness**: three presets (*Quiet* −18, *Normal* −14,
+*Loud* −11) and a slider from −23 to −8, in LUFS. −14 is what Spotify and
+YouTube use. Your own volume slider still works on top of it.
+
+How it works:
+
+- **Measuring.** A song is measured the first time it plays, and the *next*
+  song is measured while the current one plays (a Drive song is downloaded
+  in the background anyway for instant starts), so by the time it comes on
+  its adjustment is usually ready. The song's audio is decoded in the browser
+  (at a reduced sample rate, to save memory) and its **integrated loudness**
+  is computed as defined by ITU-R BS.1770-4 (K-weighting, 400 ms blocks,
+  absolute and relative gating) — the same measure ReplayGain 2 and the
+  streaming services use (`src/lib/loudness.js`). The result (loudness and the
+  song's loudest peak) is stored with the song in the library, so a song is
+  measured only once per device, and the Settings page shows how many are
+  done. Mono files are measured as the same sound on both speakers. Files
+  over 60 MB (e.g. audiobooks) aren't measured.
+- **Adjusting.** The gap between the song's loudness and the target is
+  applied through a Web Audio gain node (`src/lib/audioGain.js`), which —
+  unlike the audio element's own volume, capped at 100% — can also turn quiet
+  songs *up*. The adjustment is set the moment the song starts, so a loud
+  song never starts at the previous song's level; a song that hasn't been
+  measured yet starts unchanged and eases to its level a second or two later.
+- **Limits.** A song is never turned up by more than **12 dB** or down by
+  more than **24 dB**, and a boost stops short of the point where the song's
+  own loudest peak would reach full scale (−1 dBFS), so nothing is ever
+  pushed into distortion. A very quiet recording with a low peak may
+  therefore sit a little under the target.
+- **Nothing changes when it's off.** The Web Audio routing is created only
+  once the switch is turned on; with it off, audio plays exactly as before.
+  An audio element can't be taken out of that routing again, so switching it
+  off afterwards just sets the gain back to unchanged until the next reload.
+  If audio ever misbehaves on a particular phone or browser (for example
+  stopping while the screen is off), turning volume matching off and
+  reloading the page is the first thing to try.
+
 ## Layout & mobile
 
 The sidebar has its own collapse button (an SVG chevron, not a text

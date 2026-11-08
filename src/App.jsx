@@ -29,6 +29,10 @@ import {
 import ColumnSettings from "./components/ColumnSettings.jsx";
 import AlbumGrid from "./components/AlbumGrid.jsx";
 import { useEscapeClose } from "./lib/escapeStack.js";
+import SettingsPage from "./components/SettingsPage.jsx";
+import { loadSettings, saveSettings } from "./lib/settings.js";
+import { dbToLinear, gainDbFor, measureLoudness } from "./lib/loudness.js";
+import { ensureGraph, isGraphReady, resumeContext, setGain } from "./lib/audioGain.js";
 import { mapWithConcurrency } from "./lib/pool.js";
 import { driveFileChanged, isDegradedTags } from "./lib/driveVersion.js";
 import ViewToggle from "./components/ViewToggle.jsx";
@@ -114,6 +118,14 @@ export default function App() {
   const [rememberedAccounts, setRememberedAccounts] = useState(() => getRememberedAccounts());
   const [driveError, setDriveError] = useState("");
   const searchInputRef = useRef(null);
+
+  // Settings (see lib/settings.js) and volume matching (lib/loudness.js).
+  const [settings, setSettings] = useState(loadSettings);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const loudnessChainRef = useRef(Promise.resolve()); // songs are measured one at a time
+  const loudnessInFlightRef = useRef(new Set()); // song ids being measured now
+  const loudnessFailedRef = useRef(new Set()); // song ids that couldn't be measured (not retried this session)
   const [notice, setNotice] = useState("");
   const [infoNotice, setInfoNotice] = useState(""); // a result worth telling the user (not an error)
   const [refreshingAccountId, setRefreshingAccountId] = useState(null);
@@ -530,6 +542,33 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Volume matching: keep the playback gain in step with the current song, the
+  // target and the on/off switch. (A new song's gain is set the moment it starts,
+  // in playById; this covers the rest — e.g. the measurement finishing a second
+  // after the song began, or you moving the target while it plays.)
+  useEffect(() => {
+    const vm = settings.volumeMatch;
+    if (!vm.enabled) {
+      if (isGraphReady()) setGain(1, 0.2); // routed once, can't be un-routed: back to unchanged
+      return;
+    }
+    if (!isGraphReady() && !ensureGraph(audioRef.current)) return;
+    setGain(dbToLinear(gainDbFor(loudnessOf(playingTrack), vm.targetLufs)), 0.3);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    settings.volumeMatch.enabled,
+    settings.volumeMatch.targetLufs,
+    playingTrack?.id,
+    playingTrack?.loudnessLufs,
+    playingTrack?.loudnessPeak,
+  ]);
+
+  // ...and measure the current song once its audio is available.
+  useEffect(() => {
+    if (settings.volumeMatch.enabled && playingTrack) ensureLoudness(playingTrack);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.volumeMatch.enabled, playingTrack?.id, playingTrack?.objectUrl, playingTrack?.file]);
+
   // Safety net: never leave the spinner up forever if no "playing" event comes.
   useEffect(() => {
     if (loadingTrackId === null) return undefined;
@@ -723,6 +762,8 @@ export default function App() {
       isrc: r.isrc || null,
       durationSec: r.durationSec,
       artworkUrl: r.artworkBlob ? URL.createObjectURL(r.artworkBlob) : null,
+      loudnessLufs: r.loudnessLufs ?? null,
+      loudnessPeak: r.loudnessPeak ?? null,
       order: r.order ?? 0,
       tagsLoaded: true,
     };
@@ -1059,6 +1100,65 @@ export default function App() {
     markSynced(connection.id);
   }
 
+  // ---- Settings & volume matching ----
+
+  function handleUpdateVolumeMatch(patch) {
+    setSettings((prev) => {
+      const next = { ...prev, volumeMatch: { ...prev.volumeMatch, ...patch } };
+      saveSettings(next);
+      return next;
+    });
+  }
+
+  function loudnessOf(track) {
+    return Number.isFinite(track?.loudnessLufs) ? { lufs: track.loudnessLufs, peak: track.loudnessPeak } : null;
+  }
+
+  // Sets the gain for `track` right away (used when a song is about to start).
+  function applyVolumeMatchNow(track) {
+    const vm = settingsRef.current.volumeMatch;
+    if (!vm.enabled) return;
+    if (!isGraphReady() && !ensureGraph(audioRef.current)) return;
+    setGain(dbToLinear(gainDbFor(loudnessOf(track), vm.targetLufs)), 0);
+  }
+
+  // Measures a song's loudness (once) when its audio file is at hand, remembers
+  // it in the library, and the gain effect picks it up. One song at a time, so
+  // two decodes never compete for memory.
+  function ensureLoudness(track) {
+    if (!settingsRef.current.volumeMatch.enabled || !track) return;
+    if (Number.isFinite(track.loudnessLufs)) return;
+    const blob = track.file || track.blob;
+    const id = track.id;
+    if (!blob || loudnessInFlightRef.current.has(id) || loudnessFailedRef.current.has(id)) return;
+    loudnessInFlightRef.current.add(id);
+
+    const run = async () => {
+      try {
+        const result = await measureLoudness(blob);
+        if (!result) {
+          loudnessFailedRef.current.add(id);
+          return;
+        }
+        setTracks((prev) =>
+          prev.map((t) => (t.id === id ? { ...t, loudnessLufs: result.lufs, loudnessPeak: result.peak } : t))
+        );
+        const record = persistedMetaRef.current.get(id);
+        if (record) {
+          const updated = { ...record, loudnessLufs: result.lufs, loudnessPeak: result.peak };
+          persistedMetaRef.current.set(id, updated);
+          await putTrack(updated);
+        }
+      } catch (err) {
+        console.warn("Loudness measurement failed:", err);
+        loudnessFailedRef.current.add(id);
+      } finally {
+        loudnessInFlightRef.current.delete(id);
+      }
+    };
+    loudnessChainRef.current = loudnessChainRef.current.then(run, run);
+  }
+
   // Drive files' full audio is only downloaded the first time they're played
   // (tag-reading uses a much smaller partial download — see addDriveTrackAndTag).
   // The next song is also downloaded ahead of time while the current one plays
@@ -1090,7 +1190,7 @@ export default function App() {
     // (the whole file this time) used to happen first and delayed the start;
     // it now runs in the background and just refreshes the details afterwards.
     const objectUrl = URL.createObjectURL(blob);
-    setTracks((prev) => prev.map((t) => (t.id === track.id ? { ...t, objectUrl } : t)));
+    setTracks((prev) => prev.map((t) => (t.id === track.id ? { ...t, objectUrl, blob } : t)));
 
     (async () => {
       try {
@@ -1098,7 +1198,12 @@ export default function App() {
         setTracks((prev) =>
           prev.map((t) => (t.id === track.id ? { ...t, ...tags, objectUrl: t.objectUrl, tagsLoaded: true } : t))
         );
+        // Start from the stored record as it is NOW (not as it was when the
+        // download began): it may have gained a Drive version or a loudness
+        // measurement in the meantime.
+        const latest = persistedMetaRef.current.get(track.id) || record;
         const updatedRecord = {
+          ...latest,
           id: track.id,
           source: "drive",
           driveId: track.driveId,
@@ -1122,7 +1227,7 @@ export default function App() {
       }
     })();
 
-    return { ...track, objectUrl };
+    return { ...track, objectUrl, blob };
   }
 
   async function handleClearLibrary() {
@@ -1521,6 +1626,12 @@ export default function App() {
     setSearchQuery("");
   }
 
+  function navigateToSettings() {
+    setActivePage("settings");
+    setActivePlaylistId(null);
+    setSearchQuery("");
+  }
+
   async function handleUpdatePlaylist(updatedPlaylist) {
     await putPlaylist(updatedPlaylist);
     setPlaylists((prev) => prev.map((p) => (p.id === updatedPlaylist.id ? updatedPlaylist : p)));
@@ -1593,13 +1704,19 @@ export default function App() {
     const timer = setTimeout(() => {
       const nextId = peekNextTrackId();
       const next = nextId ? tracks.find((t) => t.id === nextId) : null;
-      if (!next || next.source !== "drive" || next.objectUrl) return;
+      if (!next) return;
+      if (next.source !== "drive" || next.objectUrl) {
+        ensureLoudness(next); // its audio is already here: measure it now (volume matching)
+        return;
+      }
       if (preloadFailedRef.current.has(next.id)) return;
-      ensureDriveTrackReady(next).catch(() => preloadFailedRef.current.add(next.id));
+      ensureDriveTrackReady(next)
+        .then((ready) => ensureLoudness(ready))
+        .catch(() => preloadFailedRef.current.add(next.id));
     }, 1500);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlaying, currentTrackId, queue, playQueue, shuffle, repeatMode, driveConnections]);
+  }, [isPlaying, currentTrackId, queue, playQueue, shuffle, repeatMode, driveConnections, settings.volumeMatch.enabled]);
 
   const reorderable = sortKey === null && !debouncedSearchQuery.trim();
 
@@ -1694,6 +1811,7 @@ export default function App() {
     // path still run.
     const audio = audioRef.current;
     const url = safeAudioSrc(track.objectUrl);
+    applyVolumeMatchNow(track); // so a loud song never starts at the previous song's level
     if (audio && url) {
       // Already playing this very file (clicked the current song again):
       // no new "playing" event will come, so there is nothing to wait for.
@@ -1713,6 +1831,7 @@ export default function App() {
   function startAudio() {
     const audio = audioRef.current;
     if (!audio) return;
+    resumeContext(); // no-op unless volume matching has routed the audio through Web Audio
     const result = audio.play();
     result?.catch?.((err) => {
       if (err?.name === "NotAllowedError") {
@@ -2178,6 +2297,7 @@ export default function App() {
         libraryCount={tracks.length}
         onOpenAbout={() => setShowAbout(true)}
         onOpenCarMode={openCarMode}
+        onOpenSettings={navigateToSettings}
       />
 
       <main className="main">
@@ -2193,7 +2313,7 @@ export default function App() {
                   ☰
                 </button>
               )}
-              <h1>{activePage === "playlists" ? "Playlists" : activePlaylistId ? playlists.find((p) => p.id === activePlaylistId)?.name : "All tracks"}</h1>
+              <h1>{activePage === "settings" ? "Settings" : activePage === "playlists" ? "Playlists" : activePlaylistId ? playlists.find((p) => p.id === activePlaylistId)?.name : "All tracks"}</h1>
             </div>
             {activePage === "library" && (
               <div className="library-title-actions">
@@ -2260,7 +2380,14 @@ export default function App() {
           )}
         </div>
         <div className="library-body">
-          {activePage === "playlists" ? (
+          {activePage === "settings" ? (
+            <SettingsPage
+              settings={settings}
+              onChangeVolumeMatch={handleUpdateVolumeMatch}
+              measuredCount={tracks.filter((t) => Number.isFinite(t.loudnessLufs)).length}
+              totalCount={tracks.length}
+            />
+          ) : activePage === "playlists" ? (
             <PlaylistManager
               playlists={playlists}
               trackCount={tracks.length}

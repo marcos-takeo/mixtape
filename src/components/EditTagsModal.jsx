@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useEscapeClose } from "../lib/escapeStack.js";
+import { normalizeVideoInput } from "../lib/youtube.js";
 
 export default function EditTagsModal({
   track,
@@ -12,6 +13,7 @@ export default function EditTagsModal({
   const [title, setTitle] = useState(track.title || "");
   const [artist, setArtist] = useState(track.artist || "");
   const [album, setAlbum] = useState(track.album || "");
+  const [videoUrl, setVideoUrl] = useState(track.videoUrl || "");
   const [newArt, setNewArt] = useState(null); // File | null
   const [removeArt, setRemoveArt] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -30,14 +32,20 @@ export default function EditTagsModal({
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setSaving(true);
     setError("");
     setInfo("");
+    const video = normalizeVideoInput(videoUrl);
+    if (!video.ok) {
+      setError(video.error);
+      return;
+    }
+    setSaving(true);
     try {
       const result = await onSave({
         title: title.trim() || track.title,
         artist: artist.trim() || track.artist,
         album: album.trim(),
+        videoUrl: video.url,
         pictureFile: newArt,
         removeArt,
       });
@@ -169,6 +177,23 @@ export default function EditTagsModal({
             placeholder="(none)"
           />
         </label>
+        <label className="editor-field">
+          Video URL (YouTube)
+          <input
+            type="text"
+            inputMode="url"
+            autoComplete="off"
+            spellCheck={false}
+            value={videoUrl}
+            onChange={(e) => setVideoUrl(e.target.value)}
+            disabled={saving}
+            placeholder="https://www.youtube.com/watch?v=…"
+          />
+        </label>
+        <p className="modal-note">
+          Optional. Paste a YouTube link to be able to show the video, muted, in place of the album art in the
+          now-playing panel. The link is saved in the file's tags.
+        </p>
 
         {!hasHandle && !info && (
           <p className="modal-note">

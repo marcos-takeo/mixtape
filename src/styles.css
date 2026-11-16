@@ -1254,13 +1254,83 @@ button {
   color: var(--accent);
 }
 
-.np-panel-art {
+.np-panel-cover {
+  position: relative;
   width: 350px;
   height: 350px;
+  flex-shrink: 0;
+}
+
+.np-panel-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
   border-radius: 8px;
   background: var(--bg) center/cover no-repeat;
   border: 1px solid var(--divider);
-  flex-shrink: 0;
+}
+
+/* The muted video that can replace the cover art */
+.video-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: #000;
+}
+
+/* Art | Video switch in the corner of the cover (only when the song has a video) */
+.cover-toggle {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  display: flex;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.cover-toggle-btn {
+  min-height: 32px;
+  padding: 4px 13px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cover-toggle-btn:hover {
+  color: var(--accent);
+}
+
+.cover-toggle-btn[aria-pressed="true"] {
+  background: var(--accent);
+  color: #000;
+}
+
+.cover-toggle-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+
+/* "This video can't be played" — over the bottom of the cover art */
+.video-notice {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 0 0 8px 8px;
+  background: rgba(0, 0, 0, 0.82);
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .np-panel-text {
@@ -1710,7 +1780,7 @@ input[type="range"]::-moz-range-thumb {
     gap: 12px;
   }
 
-  .np-panel-art {
+  .np-panel-cover {
     width: 200px;
     height: 200px;
     align-self: center;
@@ -1757,7 +1827,7 @@ input[type="range"]::-moz-range-thumb {
     display: none;
   }
 
-  .np-panel-art {
+  .np-panel-cover {
     margin-top: 30px;
   }
 
@@ -1949,7 +2019,7 @@ input[type="range"]::-moz-range-thumb {
    desktop window) rather than a fixed device width, since landscape phone
    widths vary a lot by device but the height is reliably short. */
 @media (orientation: landscape) and (max-height: 500px) {
-  .np-panel-art {
+  .np-panel-cover {
     width: 215px;
     height: 215px;
   }

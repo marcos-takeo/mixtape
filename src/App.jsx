@@ -760,6 +760,7 @@ export default function App() {
       album: r.album,
       year: r.year,
       isrc: r.isrc || null,
+      videoUrl: r.videoUrl || "",
       durationSec: r.durationSec,
       artworkUrl: r.artworkBlob ? URL.createObjectURL(r.artworkBlob) : null,
       loudnessLufs: r.loudnessLufs ?? null,
@@ -837,6 +838,7 @@ export default function App() {
           album: tags.album,
           year: tags.year,
           isrc: tags.isrc || null,
+          videoUrl: tags.videoUrl || "",
           durationSec: tags.durationSec,
           artworkBlob: tags.artworkBlob || null,
           order: persistedMetaRef.current.get(id)?.order ?? nextOrder(),
@@ -1026,6 +1028,7 @@ export default function App() {
         album: tags.album,
         year: tags.year,
         isrc: tags.isrc || null,
+        videoUrl: tags.videoUrl || "",
         durationSec: tags.durationSec,
         artworkBlob: tags.artworkBlob || null,
         tagsFailed: false,
@@ -1049,6 +1052,7 @@ export default function App() {
                 album: fresh.album,
                 year: fresh.year,
                 isrc: fresh.isrc,
+                videoUrl: fresh.videoUrl,
                 durationSec: fresh.durationSec,
                 artworkUrl: fresh.artworkUrl,
               }
@@ -1215,6 +1219,7 @@ export default function App() {
           album: tags.album,
           year: tags.year,
           isrc: tags.isrc || null,
+          videoUrl: tags.videoUrl || "",
           durationSec: tags.durationSec,
           artworkBlob: tags.artworkBlob || null,
           order: record?.order ?? nextOrder(),
@@ -1371,6 +1376,9 @@ export default function App() {
   // --- Editing ID3 tags (local files only; Drive stays read-only) ---
   async function handleSaveTags(track, fields) {
     const record = persistedMetaRef.current.get(track.id);
+    // The link to the song's video ("" = none). It is written into the file with
+    // the other tags, and must be passed on each time since a write replaces the tag.
+    const videoUrl = fields.videoUrl ?? track.videoUrl ?? "";
 
     // Editing swaps this track's audio source (new tagged bytes), which
     // stops whatever was playing — reflect that in the UI immediately
@@ -1412,6 +1420,7 @@ export default function App() {
         album: fields.album,
         year: track.year,
         isrc: track.isrc,
+        videoUrl,
         pictureBlob,
       });
 
@@ -1423,7 +1432,7 @@ export default function App() {
       setTracks((prev) =>
         prev.map((t) =>
           t.id === track.id
-            ? { ...t, objectUrl, title: fields.title, artist: fields.artist, album: fields.album, artworkUrl }
+            ? { ...t, objectUrl, title: fields.title, artist: fields.artist, album: fields.album, videoUrl, artworkUrl }
             : t
         )
       );
@@ -1435,6 +1444,7 @@ export default function App() {
         title: fields.title,
         artist: fields.artist,
         album: fields.album,
+        videoUrl,
         artworkBlob: pictureBlob,
         // The version of the file we just uploaded, so the next sync doesn't
         // mistake this device's own edit for one made elsewhere.
@@ -1455,6 +1465,7 @@ export default function App() {
       album: fields.album,
       year: track.year,
       isrc: track.isrc,
+      videoUrl,
       pictureBlob,
     });
 
@@ -1472,6 +1483,7 @@ export default function App() {
                 title: fields.title,
                 artist: fields.artist,
                 album: fields.album,
+                videoUrl,
                 artworkUrl,
               }
             : t
@@ -1485,6 +1497,7 @@ export default function App() {
         title: fields.title,
         artist: fields.artist,
         album: fields.album,
+        videoUrl,
         artworkBlob: pictureBlob,
         updatedAt: Date.now(),
       };
@@ -1500,7 +1513,7 @@ export default function App() {
     setTracks((prev) =>
       prev.map((t) =>
         t.id === track.id
-          ? { ...t, title: fields.title, artist: fields.artist, album: fields.album, artworkUrl }
+          ? { ...t, title: fields.title, artist: fields.artist, album: fields.album, videoUrl, artworkUrl }
           : t
       )
     );
@@ -1511,6 +1524,7 @@ export default function App() {
         title: fields.title,
         artist: fields.artist,
         album: fields.album,
+        videoUrl,
         artworkBlob: pictureBlob,
         updatedAt: Date.now(),
       };

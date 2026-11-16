@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
+import VideoCover from "./VideoCover.jsx";
+import { parseYouTubeVideoId } from "../lib/youtube.js";
 import { useEscapeClose } from "../lib/escapeStack.js";
 import { formatDuration } from "../lib/id3.js";
 import {
@@ -53,6 +55,15 @@ export default function PlayerBar({
   queueCount = 0,
 }) {
   const [expanded, setExpanded] = useState(false);
+  // Cover or video in the large cover: the album art is ALWAYS what you see
+  // first (each song, each time the panel opens); Video only when you ask.
+  const [showVideo, setShowVideo] = useState(false);
+  const [videoNotice, setVideoNotice] = useState("");
+  const videoId = parseYouTubeVideoId(track?.videoUrl);
+  useEffect(() => {
+    setShowVideo(false);
+    setVideoNotice("");
+  }, [track?.id, expanded]);
   const [lyrics, setLyrics] = useState(null); // undefined = loading, null = none found/not fetched
   const [lyricsError, setLyricsError] = useState("");
   useEscapeClose(() => setExpanded(false), expanded && Boolean(track));
@@ -160,10 +171,52 @@ export default function PlayerBar({
           <button className="np-panel-close" onClick={() => setExpanded(false)} aria-label="Close">
             ×
           </button>
-          <span
-            className="np-panel-art"
-            style={track.artworkUrl ? { backgroundImage: `url(${track.artworkUrl})` } : undefined}
-          />
+          <div className="np-panel-cover">
+            {showVideo && videoId ? (
+              <VideoCover
+                key={videoId}
+                videoId={videoId}
+                playing={isPlaying}
+                onUnavailable={(message) => {
+                  setShowVideo(false);
+                  setVideoNotice(message);
+                }}
+              />
+            ) : (
+              <span
+                className="np-panel-art"
+                style={track.artworkUrl ? { backgroundImage: `url(${track.artworkUrl})` } : undefined}
+              />
+            )}
+            {videoId && (
+              <div className="cover-toggle" role="group" aria-label="Show album art or video">
+                <button
+                  type="button"
+                  className="cover-toggle-btn"
+                  aria-pressed={!showVideo}
+                  onClick={() => setShowVideo(false)}
+                >
+                  Art
+                </button>
+                <button
+                  type="button"
+                  className="cover-toggle-btn"
+                  aria-pressed={showVideo}
+                  onClick={() => {
+                    setVideoNotice("");
+                    setShowVideo(true);
+                  }}
+                >
+                  Video
+                </button>
+              </div>
+            )}
+            {videoNotice && (
+              <p className="video-notice" role="status">
+                {videoNotice}
+              </p>
+            )}
+          </div>
           <div className="np-panel-text">
             {/* Title/artist/album intentionally omitted here — already shown
                 in the transport bar's now-playing info, right below this panel. */}

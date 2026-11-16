@@ -54,6 +54,9 @@ play/pause button correctly flips back to "play" when this happens,
 rather than continuing to show "pause" for audio that's no longer
 actually playing.
 
+The dialog also has a **Video URL (YouTube)** field — see *Video instead of the
+cover art* under *Now playing*.
+
 **Edits made on another device (Drive songs).** Each browser keeps its own
 copy of every song's details (title, artist, album, cover) — only
 *playlists* are synced through the server. When you edit a Drive song's
@@ -510,6 +513,44 @@ to show a blue-tinted icon and volume a blue speaker regardless of
 theme). The **repeat** button cycles off → all → one song, and
 **shuffle** overrides play order independently of it.
 
+### Video instead of the cover art
+
+The large cover in the now-playing panel can show a **muted YouTube video**
+instead of the album art. A song gets one by pasting a YouTube link in the
+**Video URL (YouTube)** field of *Edit tags*; from then on the panel's cover
+has a small **Art | Video** switch in its top-left corner (songs without a
+link don't have it).
+
+- **Art is always what you see first** — for every song, and every time the
+  panel is opened. The video is shown only when you click *Video*, and it is
+  loaded only then (nothing streams in the background); *Art* unloads it.
+- The video is muted, has no controls and repeats. It **follows the song's
+  play/pause** state but is *not* kept in step with its position (seeking
+  the song doesn't move the video).
+- If the video can't be played — the owner disabled embedding (common for
+  official label videos; lyric videos and live clips usually work), or it
+  was removed or made private — the cover goes back to the art with a short
+  red message, until you try *Video* again.
+- Accepted links: `youtube.com/watch?v=…`, `youtu.be/…`, `/shorts/…`,
+  `/embed/…`, `/live/…`, `music.youtube.com`, with or without `https://` and
+  with any extra parameters (a start time is ignored). The link is stored in
+  its tidy form `https://www.youtube.com/watch?v=<id>`.
+- **It lives in the file.** The link is written into the MP3's own tags as a
+  standard ID3 "user-defined URL" (`WXXX`) frame described "Mixtape Video"
+  (other players ignore it). So for Drive songs it travels with the file: other
+  devices pick it up through the changed-file detection described under
+  *Editing tags*. Saving or clearing a link rewrites the file's tags like any
+  other tag edit (for a Drive song: download, rewrite, upload).
+- Technically: YouTube's privacy-enhanced embed
+  (`www.youtube-nocookie.com`) in an `<iframe>` (`src/components/VideoCover.jsx`,
+  `src/lib/youtube.js`), controlled with the player's `postMessage` interface
+  (`enablejsapi=1`) — so no YouTube script is loaded into the app. The page's
+  CSP therefore allows that one domain for frames (see below).
+- Per YouTube's terms the player is shown by YouTube's own embed, at a
+  normal size and unobscured (the cover is 200–350 px); embedded videos can
+  still show ads. Video uses noticeably more data and battery than the
+  art, which is why it's opt-in each time.
+
 ### How lyrics are matched
 
 Lyrics come from [LRCLIB](https://lrclib.net), which matches by track
@@ -751,6 +792,9 @@ app actually uses: itself (`'self'`), Google's sign-in script and API
 Google Fonts (`fonts.googleapis.com`/`fonts.gstatic.com`), and the metadata
 providers used for tag/artwork/lyric lookups (`musicbrainz.org`,
 `coverartarchive.org`, `archive.org`/`*.archive.org`, `lrclib.net`).
+The only page allowed to be framed is YouTube's privacy-enhanced player
+(`frame-src https://www.youtube-nocookie.com`, besides Google's sign-in), used
+for the optional muted video in the now-playing panel.
 Everything else — arbitrary scripts, frames, connections — is refused by
 default. `object-src 'none'` and a locked-down `base-uri`/`form-action`
 close off some of the classic ways an injected payload would otherwise

@@ -1,4 +1,5 @@
 import { ID3Writer } from "browser-id3-writer";
+import { VIDEO_TAG_DESCRIPTION } from "./youtube.js";
 
 /**
  * Writes a fresh ID3v2.3 tag onto a copy of the given audio file and
@@ -7,7 +8,7 @@ import { ID3Writer } from "browser-id3-writer";
  * (not just the ones being changed) — e.g. pass the current album/year
  * back in even if the user is only editing the title.
  */
-export async function writeId3Tags(file, { title, artist, album, year, isrc, pictureBlob }) {
+export async function writeId3Tags(file, { title, artist, album, year, isrc, videoUrl, pictureBlob }) {
   const arrayBuffer = await file.arrayBuffer();
   const writer = new ID3Writer(arrayBuffer);
 
@@ -16,6 +17,8 @@ export async function writeId3Tags(file, { title, artist, album, year, isrc, pic
   if (album) writer.setFrame("TALB", album);
   if (year) writer.setFrame("TYER", Number(year));
   if (isrc) writer.setFrame("TSRC", isrc);
+  // The link to the song's video (shown in place of the cover on request).
+  if (videoUrl) writer.setFrame("WXXX", { description: VIDEO_TAG_DESCRIPTION, value: videoUrl });
 
   if (pictureBlob) {
     const pictureData = await pictureBlob.arrayBuffer();

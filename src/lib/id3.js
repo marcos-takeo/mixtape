@@ -1,4 +1,17 @@
 import { parseBlob } from "music-metadata";
+import { VIDEO_TAG_DESCRIPTION } from "./youtube.js";
+
+// The video link written by the app (see id3Writer.js), if the file has one.
+function readVideoUrl(metadata) {
+  for (const frames of Object.values(metadata.native ?? {})) {
+    for (const frame of frames) {
+      if (frame.id === "WXXX" && frame.value?.description === VIDEO_TAG_DESCRIPTION && frame.value?.url) {
+        return String(frame.value.url);
+      }
+    }
+  }
+  return "";
+}
 
 /**
  * Reads ID3 (and other) tags from an audio Blob/File and returns a
@@ -51,6 +64,7 @@ export async function readTags(blob, fallbackName = "Unknown track", totalSizeBy
       year: common.year || null,
       durationSec,
       isrc: common.isrc?.[0] || null,
+      videoUrl: readVideoUrl(metadata),
       artworkUrl,
       artworkBlob,
     };
@@ -63,6 +77,7 @@ export async function readTags(blob, fallbackName = "Unknown track", totalSizeBy
       year: null,
       durationSec: null,
       isrc: null,
+      videoUrl: "",
       artworkUrl: null,
       artworkBlob: null,
     };

@@ -3309,3 +3309,17 @@ button.playlist-manager-name:hover {
     aspect-ratio: 16 / 9;
   }
 }
+
+
+/* Breathing room under the player bar on phones, tablets and narrow windows:
+   it looks better, and keeps the seek slider and buttons off the very bottom
+   edge, where the system's swipe-up gesture (the home indicator on iPhone and
+   iPad) can take the touch instead. At least 20px, or the device's own
+   bottom safe area when that is larger. (The `platform-ipad` rule near the top
+   already did this for iPads detected by script; this covers every touch
+   device without relying on detection.) */
+@media (pointer: coarse), (max-width: 1100px) {
+  .transport {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 20px);
+  }
+}

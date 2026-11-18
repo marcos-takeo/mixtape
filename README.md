@@ -652,6 +652,12 @@ How it works:
 
 ## Layout & mobile
 
+**Bottom spacing.** On touch devices and narrow windows the player bar has at
+least 20px of padding under its controls (or the device's bottom safe area, if
+larger), so the seek slider isn't at the very edge of the screen where an
+iPhone/iPad's swipe-up gesture can grab the touch. Desktop windows wider than
+1100px with a mouse keep the compact bar.
+
 The sidebar has its own collapse button (an SVG chevron, not a text
 character — those don't always center perfectly inside a circular
 button) inside it, floating in the corner so the logo above it can stay

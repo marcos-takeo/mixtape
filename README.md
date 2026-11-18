@@ -518,8 +518,8 @@ theme). The **repeat** button cycles off → all → one song, and
 The large cover in the now-playing panel can show a **muted YouTube video**
 instead of the album art. A song gets one by pasting a YouTube link in the
 **Video URL (YouTube)** field of *Edit tags*; from then on the panel's cover
-has a small **Art | Video** switch in its top-left corner (songs without a
-link don't have it).
+has a small **Art | Video** switch right *below* it, so nothing is drawn over
+the art or the video (songs without a link don't have it).
 
 - **Art is always what you see first** — for every song, and every time the
   panel is opened. The video is shown only when you click *Video*, and it is
@@ -527,6 +527,17 @@ link don't have it).
 - The video is muted, has no controls and repeats. It **follows the song's
   play/pause** state but is *not* kept in step with its position (seeking
   the song doesn't move the video).
+- **It is only a picture.** The video can't be clicked or focused (so YouTube's
+  hover overlays — "copy link", "watch on YouTube", its own buttons, the
+  suggested-videos tile — don't pop up), and **captions are switched off**
+  (`cc_load_policy=0` plus the player's `unloadModule` command). What the app
+  can't do is remove things YouTube draws by itself: its title/channel bar
+  for the first seconds, and — whenever the video is *paused* (i.e. while the
+  song is paused) — YouTube's own "more videos" tile. Those are part of the
+  player; hiding or covering them isn't allowed by YouTube's terms, so the
+  app doesn't try. If captions still appear, they come from outside the app:
+  your YouTube account's "always show captions" setting or the browser's own
+  *Live Caption* feature (Chrome: Settings → Accessibility).
 - If the video can't be played — the owner disabled embedding (common for
   official label videos; lyric videos and live clips usually work), or it
   was removed or made private — the cover goes back to the art with a short

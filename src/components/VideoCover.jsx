@@ -7,7 +7,8 @@ import { EMBED_ORIGIN, embedErrorMessage, embedSrc } from "../lib/youtube.js";
  * kept in step with the song's position).
  *
  * Plays through YouTube's embedded player in an iframe (youtube-nocookie.com).
- * The page controls it — pause, resume, and hearing that it can't be played —
+ * It is only a picture (not clickable). The page controls it — pause, resume,
+ * captions off, and hearing that it can't be played —
  * through the player's postMessage interface (enabled by `enablejsapi=1`), so
  * no YouTube script needs to be loaded into the app.
  */
@@ -21,9 +22,13 @@ export default function VideoCover({ videoId, playing, onUnavailable }) {
   function post(payload) {
     frameRef.current?.contentWindow?.postMessage(JSON.stringify(payload), EMBED_ORIGIN);
   }
-  const command = (func) => post({ event: "command", func, args: [] });
+  const command = (func, args = []) => post({ event: "command", func, args });
   const applyState = () => {
     command("mute");
+    // Captions off (YouTube may turn them on by itself: by the viewer's own
+    // YouTube settings, or because the video has them). Best effort.
+    command("unloadModule", ["captions"]);
+    command("unloadModule", ["cc"]);
     command(playingRef.current ? "playVideo" : "pauseVideo");
   };
 
@@ -80,6 +85,10 @@ export default function VideoCover({ videoId, playing, onUnavailable }) {
       title="Video"
       allow="autoplay; encrypted-media; picture-in-picture"
       referrerPolicy="strict-origin-when-cross-origin"
+      // Only a picture: not clickable or focusable, so YouTube's hover overlays
+      // (copy link, "watch on YouTube", suggested videos, its own buttons) never
+      // get a chance to appear.
+      tabIndex={-1}
     />
   );
 }

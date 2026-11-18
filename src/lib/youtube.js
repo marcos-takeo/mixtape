@@ -65,6 +65,7 @@ export function embedSrc(videoId, pageOrigin) {
     rel: "0",
     modestbranding: "1",
     iv_load_policy: "3",
+    cc_load_policy: "0", // no captions by default (also switched off through the player, see VideoCover)
     disablekb: "1",
     fs: "0",
     origin: pageOrigin,

@@ -171,24 +171,32 @@ export default function PlayerBar({
           <button className="np-panel-close" onClick={() => setExpanded(false)} aria-label="Close">
             ×
           </button>
-          <div className="np-panel-cover">
-            {showVideo && videoId ? (
-              <VideoCover
-                key={videoId}
-                videoId={videoId}
-                playing={isPlaying}
-                onUnavailable={(message) => {
-                  setShowVideo(false);
-                  setVideoNotice(message);
-                }}
-              />
-            ) : (
-              <span
-                className="np-panel-art"
-                style={track.artworkUrl ? { backgroundImage: `url(${track.artworkUrl})` } : undefined}
-              />
-            )}
+          <div className={`np-panel-media${videoId ? " has-toggle" : ""}`}>
+            <div className="np-panel-cover">
+              {showVideo && videoId ? (
+                <VideoCover
+                  key={videoId}
+                  videoId={videoId}
+                  playing={isPlaying}
+                  onUnavailable={(message) => {
+                    setShowVideo(false);
+                    setVideoNotice(message);
+                  }}
+                />
+              ) : (
+                <span
+                  className="np-panel-art"
+                  style={track.artworkUrl ? { backgroundImage: `url(${track.artworkUrl})` } : undefined}
+                />
+              )}
+              {videoNotice && (
+                <p className="video-notice" role="status">
+                  {videoNotice}
+                </p>
+              )}
+            </div>
             {videoId && (
+              // Below the cover, not on top of it: nothing is drawn over the art or the video.
               <div className="cover-toggle" role="group" aria-label="Show album art or video">
                 <button
                   type="button"
@@ -210,11 +218,6 @@ export default function PlayerBar({
                   Video
                 </button>
               </div>
-            )}
-            {videoNotice && (
-              <p className="video-notice" role="status">
-                {videoNotice}
-              </p>
             )}
           </div>
           <div className="np-panel-text">

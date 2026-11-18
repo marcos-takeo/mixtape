@@ -1254,6 +1254,14 @@ button {
   color: var(--accent);
 }
 
+.np-panel-media {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
 .np-panel-cover {
   position: relative;
   width: 350px;
@@ -1279,19 +1287,17 @@ button {
   border: 0;
   border-radius: 8px;
   background: #000;
+  /* A picture only: no hover or clicks reach YouTube's player, so its overlays
+     (copy link, suggested videos, buttons) don't pop up. */
+  pointer-events: none;
 }
 
-/* Art | Video switch in the corner of the cover (only when the song has a video) */
+/* Art | Video switch below the cover (only when the song has a video) */
 .cover-toggle {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 2;
   display: flex;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid var(--divider);
   border-radius: 16px;
-  background: rgba(0, 0, 0, 0.7);
 }
 
 .cover-toggle-btn {
@@ -1780,10 +1786,13 @@ input[type="range"]::-moz-range-thumb {
     gap: 12px;
   }
 
+  .np-panel-media {
+    align-self: center;
+  }
+
   .np-panel-cover {
     width: 200px;
     height: 200px;
-    align-self: center;
   }
 
   .np-panel-text {
@@ -1827,7 +1836,7 @@ input[type="range"]::-moz-range-thumb {
     display: none;
   }
 
-  .np-panel-cover {
+  .np-panel-media {
     margin-top: 30px;
   }
 
@@ -2022,6 +2031,12 @@ input[type="range"]::-moz-range-thumb {
   .np-panel-cover {
     width: 215px;
     height: 215px;
+  }
+
+  /* leave room for the Art | Video switch under the cover */
+  .np-panel-media.has-toggle .np-panel-cover {
+    width: 185px;
+    height: 185px;
   }
 
   .lyrics-plain,

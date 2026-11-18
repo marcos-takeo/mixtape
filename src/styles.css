@@ -3293,3 +3293,19 @@ button.playlist-manager-name:hover {
   font-size: 12px;
   margin-top: 2px;
 }
+
+
+/* The video is widescreen: on a phone held upright it takes the full width of
+   the now-playing panel (a 16:9 picture) instead of sitting in a 200px square
+   with empty space at the sides. (Not in landscape: there is little height.) */
+@media (max-width: 720px) and (orientation: portrait) {
+  .np-panel-media.is-video {
+    width: 100%;
+  }
+
+  .np-panel-media.is-video .np-panel-cover {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+}

@@ -171,7 +171,7 @@ export default function PlayerBar({
           <button className="np-panel-close" onClick={() => setExpanded(false)} aria-label="Close">
             ×
           </button>
-          <div className={`np-panel-media${videoId ? " has-toggle" : ""}`}>
+          <div className={`np-panel-media${videoId ? " has-toggle" : ""}${showVideo && videoId ? " is-video" : ""}`}>
             <div className="np-panel-cover">
               {showVideo && videoId ? (
                 <VideoCover

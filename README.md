@@ -524,6 +524,8 @@ the art or the video (songs without a link don't have it).
 - **Art is always what you see first** — for every song, and every time the
   panel is opened. The video is shown only when you click *Video*, and it is
   loaded only then (nothing streams in the background); *Art* unloads it.
+- On a phone held upright the video uses the **full width** of the panel (a
+  16:9 picture); elsewhere it sits in the same square as the art.
 - The video is muted, has no controls and repeats. It **follows the song's
   play/pause** state but is *not* kept in step with its position (seeking
   the song doesn't move the video).
